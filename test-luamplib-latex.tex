@@ -338,13 +338,16 @@ filldraw fullcircle scaled 100 withmppattern "mypatt" withpen pencircle scaled 1
   withtransparency (1,.5)
   ;
   currentpicture := currentpicture scaled 2/3;
+  label.ulft(TEX"#1", lrcorner currentpicture) withcolor 3/4white;
   \endmpfig
 }%
-\hbox{\test{isolated,knockout}\,\test{isolated}\vbox to\MPheight{\vss\hbox{~isolated}\vss}}%
+\hbox{\test{isolated,knockout}\,\test{isolated}
+  \mpfig usemplibgroup "test:isolated" scaled 2/3 rotated 15 ; \endmpfig
+}
 \hbox{\test{knockout}\,\test{}
-  \mpfig usemplibgroup "test:isolated,knockout" scaled 2/3 rotated 15 ; \endmpfig
+  \mpfig usemplibgroup "test:knockout" scaled 2/3 rotated 15 ; \endmpfig
 }%
-\hbox to\MPwidth{\hss knockout\hss}%
+
 \bigskip
 \mpfig[text]
   draw mplibgraphictext "\textbf{MPLIB}"
