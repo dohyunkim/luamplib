@@ -356,6 +356,26 @@ mplibfillandstrokeglyph pic
   withmplibcolors ("orange", 2/3red)
   ;
 \endmpfig
+\mpfig*
+  picture pic;
+  pic = image(fill fullcircle scaled 80; fill fullcircle scaled 80 shifted 40right);
+\endmpfig
+\mplibgroup{mymask}[asgroup="masking"]
+  \mpfig
+    fill bbox pic withcolor 0.2;
+    label(btex \font\t=cmssbx10 at 20bp \t Meta etex scaled 2, center pic) withcolor 1;
+  \endmpfig
+\endmplibgroup
+\mpfig
+  fill bbox pic
+    withshadingmethod "linear"
+    withshadingcolors(3/4red,3/4blue)
+    ;
+  draw pic
+    withmaskinggroup "mymask"
+    withcolor 4/5(red+blue)
+    ;
+\endmpfig
 \tracingcommands0
 
 \vskip 2\baselineskip

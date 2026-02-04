@@ -433,7 +433,27 @@ mplibfillandstrokeglyph pic
   withmplibcolors ("orange", 2/3red)
   ;
 \endmpfig
+\mpfig*
+  picture pic;
+  pic = btex \includegraphics[width=120bp]{hacker} etex shifted 50 dir 30;
+\endmpfig
+\mplibgroup{mymask}[asgroup="masking"]
+  \mpfig[off]
+    fill bbox pic withcolor 0.1;
+    label(btex \sffamily\bfseries\Huge Meta etex scaled 2, center pic) withcolor 1;
+  \endmpfig
+\endmplibgroup
+\mpfig
+  fill bbox pic
+    withshadingmethod "linear"
+    withshadingcolors(3/4red,3/4blue)
+    ;
+  draw pic
+    withmaskinggroup "mymask"
+    ;
+\endmpfig
 \end{center}
+
 \mpliblegacybehavior{true}%
 
 \vskip 2\baselineskip
