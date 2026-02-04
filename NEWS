@@ -1,5 +1,9 @@
                        History of the luamplib package
 
+   Run file changes:
+   * new metapost macro, withmaskinggroup
+   * new option for \mplibgroup, asgroup="masking"
+
    Documentation changes:
    * be more precise about the term 'textual picture'
    * caution about shading a picture that has multiple components
