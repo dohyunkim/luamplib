@@ -4615,7 +4615,11 @@ end
 function luamplib.registergroup (boxid, name, opts)
   local box = texgetbox(boxid)
   local wd, ht, dp = node.getwhd(box)
-  local res = (opts.resources or "") .. gather_resources()
+  local is_mask = opts.asgroup and opts.asgroup:find"masking"
+  local res = opts.resources or ""
+  if not is_mask then -- glitch with gather_resources. why?
+    res = res .. gather_resources(res)
+  end
   local attr = { "/Type/XObject/Subtype/Form/FormType 1" }
   if type(opts.matrix) == "table" then opts.matrix = tableconcat(opts.matrix," ") end
   if type(opts.bbox) == "table" then opts.bbox = tableconcat(opts.bbox," ") end
@@ -4630,7 +4634,7 @@ function luamplib.registergroup (boxid, name, opts)
     grtype = 2
   end
   local mpllx, mplly = get_macro'MPllx', get_macro'MPlly'
-  if opts.asgroup and opts.asgroup:find"masking" then
+  if is_mask then
     local t = opts.matrix and opts.matrix:explode() or {1, 0, 0, 1, 0, 0}
     t[5], t[6] = t[5]+mpllx, t[6]+mplly
     opts.matrix = format("%f %f %f %f %f %f",tableunpack(t))

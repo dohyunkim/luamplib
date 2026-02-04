@@ -1,5 +1,5 @@
 \ifnum\outputmode > 0
-  \DocumentMetadata{ lang=en-US, pdfversion=2.0, pdfstandard={ua-2,a-4f},
+  \DocumentMetadata{ lang=en-US, pdfversion=2.0, pdfstandard=ua-2,
   tagging=on, tagging-setup={math/setup=mathml-SE} }
 %  \DocumentMetadata{ debug=BBox }
   \documentclass{article}
@@ -443,7 +443,7 @@ mplibfillandstrokeglyph pic
     label(btex \sffamily\bfseries\Huge Meta etex scaled 2, center pic) withcolor 1;
   \endmpfig
 \endmplibgroup
-\mpfig
+\mpfig[alt=test general masking]
   fill bbox pic
     withshadingmethod "linear"
     withshadingcolors(3/4red,3/4blue)
