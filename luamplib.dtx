@@ -4238,14 +4238,14 @@ local function do_preobj_shading (object, prescript)
     if is_defined"RecordProperties" then
       put2output(tableconcat{
         "\\csname tex_savepos:D\\endcsname\\RecordProperties{luamplib/getpos/",on,"}{xpos,ypos}\z
-        \\special{pdf:put @mplibpdfobj",on," <<",os,"/Matrix[1 0 0 1 \z
+        \\special{pdf:put ",format(pdfetcs.resfmt, on)," <<",os,"/Matrix[1 0 0 1 \z
         \\csname dim_to_decimal_in_bp:n\\endcsname{\\RefProperty{luamplib/getpos/",on,"}{xpos}sp} \z
         \\csname dim_to_decimal_in_bp:n\\endcsname{\\RefProperty{luamplib/getpos/",on,"}{ypos}sp}\z
         ]>>}"
       })
     else
       local shift = prescript.sh_matrixshift or "0 0"
-      texsprint{ "\\special{pdf:put @mplibpdfobj",on," <<",os,"/Matrix[1 0 0 1 ",shift,"]>>}" }
+      texsprint{ "\\special{pdf:put ",format(pdfetcs.resfmt, on)," <<",os,"/Matrix[1 0 0 1 ",shift,"]>>}" }
       put2output(tableconcat{ "\\latelua{ luamplib.dolatelua(",on,",[[",shift,"]]) }" })
     end
   end
@@ -4490,7 +4490,9 @@ local function do_preobj_FADE (object, prescript)
   end
   local on, os, new
   if fd_type == "masking" then
-    on = get_macro("luamplib.group."..prescript.mplibmaskname):match"%d+"
+    local mac = get_macro("luamplib.group."..prescript.mplibmaskname)
+    on = mac:match(pdfmode and "%d+" or "{pdf:uxobj (.-)}")
+    os = format("<</SMask<</S/Luminosity/G %s>>>>", pdfmode and format(pdfetcs.resfmt, on) or on)
   else
     local bbox = prescript.mplibfadebbox:explode":"
     local dx, dy = -bbox[1], -bbox[2]
@@ -4535,8 +4537,8 @@ local function do_preobj_FADE (object, prescript)
       "/Group ", format(pdfetcs.resfmt, on),
     } :gsub(decimals,rmzeros)
     on = update_pdfobjs(attr, streamtext)
+    os = format("<</SMask<</S/Luminosity/G %s>>>>", format(pdfetcs.resfmt, on))
   end
-  os = "<</SMask<</S/Luminosity/G " .. format(pdfetcs.resfmt, on) .. ">>>>"
   on, new = update_pdfobjs(os)
   local key = add_extgs_resources(on,new)
   start_pdf_code()
