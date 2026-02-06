@@ -1376,37 +1376,45 @@ See source file '\inFileName' for licencing and contact information.
 %
 % The masking group should be prepared in \emph{gray scale} color model:
 % the area filled with |1| (white) will preserve the full color of the object;
-% the area filled with |0| (black) will force the full transparency.
-% Black is the background color by default.
+% the area filled with |0| (black) will force full transparency, making it invisible.
+% By default, the background color is black.
+%
+% \notabene Tiling pattern (see above \secref{mppattern}) is not allowed in the masking group.
 %
 % An example:
 %\startmpfig
-%\mpfig* picture pic; pic = image(fill fullcircle scaled 80 withcolor 1/4[red,white]; fill fullcircle scaled 80 shifted (40,0) withcolor 1/4[blue,white]); \endmpfig
+%\mpfig* picture pic; pic = image(fill fullcircle scaled 80 withcolor 1/4[blue,white]; fill fullcircle scaled 80 shifted (40,0) withcolor 1/4[red,white]); \endmpfig
 %\mplibgroup{mymask}[asgroup="masking"]
-%\mpfig fill bbox pic withcolor 0.1; label(TEX"\sffamily\bfseries\scshape\huge Meta" scaled 2, center pic) withcolor 1; \endmpfig
+%\mpfig fill bbox pic withcolor 1/10; label(TEX"\sffamily\bfseries\scshape\huge Meta" scaled 2, center pic) withcolor 1; \endmpfig
 %\endmplibgroup
 %\mpfig fill bbox pic withshadingmethod "linear" withshadingcolors(3/4red,3/4blue); draw pic withmaskinggroup "mymask"; \endmpfig
-%\stopmpfig{16}
+%\stopmpfig{20}
 %\begin{verbatim}
 %    \mpfig*
 %      picture pic;
-%      pic = image( fill fullcircle scaled 80 withcolor 1/4[red,white];
-%                   fill fullcircle scaled 80 shifted (40,0) withcolor 1/4[blue,white]; );
+%      pic = image(
+%          fill fullcircle scaled 80 withcolor 1/4[blue,white];
+%          fill fullcircle scaled 80 shifted (40,0) withcolor 1/4[red,white];
+%        );
 %    \endmpfig
 %
 %    \mplibgroup{mymask}[asgroup="masking"]
 %      \mpfig
-%        fill bbox pic withcolor 0.1;
-%        label(TEX "\sffamily\bfseries\scshape\huge Meta" scaled 2, center pic) withcolor 1;
+%        fill bbox pic
+%          withcolor 1/10 ;
+%        label(TEX "\sffamily\bfseries\scshape\huge Meta" scaled 2, center pic)
+%          withcolor 1 ;
 %      \endmpfig
 %    \endmplibgroup
 %
 %    \mpfig
 %      fill bbox pic
 %        withshadingmethod "linear"
-%        withshadingcolors(3/4red, 3/4blue) ;
+%        withshadingcolors(3/4red, 3/4blue)
+%        ;
 %      draw pic
-%        withmaskinggroup "mymask" ;
+%        withmaskinggroup "mymask"
+%        ;
 %    \endmpfig
 %\end{verbatim}
 %
@@ -4262,8 +4270,8 @@ end
 %
 %    Tiling Patterns
 %    \begin{macrocode}
-pdfetcs.patterns = { }
-local function gather_resources (optres)
+pdfetcs.patterns = { _luamplib_pattern_resources_ = { } }
+local function gather_resources (optres, is_mask)
   local t, do_pattern = { }, not optres
   local names = {"ExtGState","ColorSpace","Shading"}
   if do_pattern then
@@ -4348,6 +4356,15 @@ local function gather_resources (optres)
     mytoks = tt and tableconcat(tt)
   end
   if mytoks and mytoks ~= "" then
+    if is_mask then -- glitch with acrobat
+      local res, tt = pdfetcs.patterns._luamplib_pattern_resources_, { }
+      for _,item in ipairs(mytoks:explode"/") do
+        if not res[item:match"^%s*(.-)%s*$"] then
+          tt[#tt+1] = item
+        end
+      end
+      mytoks = tableconcat(tt,"/")
+    end
     t[#t+1] = format("/Pattern<<%s>>",mytoks)
   end
   return tableconcat(t)
@@ -4472,6 +4489,7 @@ do
     if not patt.done then
       local val = pdfmode and format("%s 0 R",index) or patterns[index]
       add_pattern_resources(key,val)
+      patterns._luamplib_pattern_resources_[format("%s %s",key,val)] = true -- glitch with acrobat
     end
     patt.done = true
   end
@@ -4619,9 +4637,7 @@ function luamplib.registergroup (boxid, name, opts)
   local wd, ht, dp = node.getwhd(box)
   local is_mask = opts.asgroup and opts.asgroup:find"masking"
   local res = opts.resources or ""
-  if not is_mask then -- glitch with gather_resources. why?
-    res = res .. gather_resources()
-  end
+  res = res .. gather_resources(res, is_mask) -- glitch on masking with acrobat
   local attr = { "/Type/XObject/Subtype/Form/FormType 1" }
   if type(opts.matrix) == "table" then opts.matrix = tableconcat(opts.matrix," ") end
   if type(opts.bbox) == "table" then opts.bbox = tableconcat(opts.bbox," ") end
