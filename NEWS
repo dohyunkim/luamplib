@@ -1,5 +1,6 @@
                        History of the luamplib package
 
+2026/02/09 2.39.0
    Run file changes:
    * new metapost macro, withmaskinggroup
    * new option for \mplibgroup, asgroup="masking"
