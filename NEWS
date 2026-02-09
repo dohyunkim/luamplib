@@ -1,5 +1,14 @@
                        History of the luamplib package
 
+2026/02/09 2.39.0
+   Run file changes:
+   * new metapost macro, withmaskinggroup
+   * new option for \mplibgroup, asgroup="masking"
+
+   Documentation changes:
+   * be more precise about the term 'textual picture'
+   * caution about shading a picture that has multiple components
+
 2026/01/29 2.38.4
    * fix "avoid error upon shading a picture composed of multiple paths"
 

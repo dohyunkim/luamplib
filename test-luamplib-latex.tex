@@ -1,5 +1,5 @@
 \ifnum\outputmode > 0
-  \DocumentMetadata{ lang=en-US, pdfversion=2.0, pdfstandard={ua-2,a-4f},
+  \DocumentMetadata{ lang=en-US, pdfversion=2.0, pdfstandard=ua-2,
   tagging=on, tagging-setup={math/setup=mathml-SE} }
 %  \DocumentMetadata{ debug=BBox }
   \documentclass{article}
@@ -338,13 +338,16 @@ filldraw fullcircle scaled 100 withmppattern "mypatt" withpen pencircle scaled 1
   withtransparency (1,.5)
   ;
   currentpicture := currentpicture scaled 2/3;
+  label.ulft(TEX"#1", lrcorner currentpicture) withcolor 3/4white;
   \endmpfig
 }%
-\hbox{\test{isolated,knockout}\,\test{isolated}\vbox to\MPheight{\vss\hbox{~isolated}\vss}}%
+\hbox{\test{isolated,knockout}\,\test{isolated}
+  \mpfig usemplibgroup "test:isolated" scaled 2/3 rotated 15 ; \endmpfig
+}
 \hbox{\test{knockout}\,\test{}
-  \mpfig usemplibgroup "test:isolated,knockout" scaled 2/3 rotated 15 ; \endmpfig
+  \mpfig usemplibgroup "test:knockout" scaled 2/3 rotated 15 ; \endmpfig
 }%
-\hbox to\MPwidth{\hss knockout\hss}%
+
 \bigskip
 \mpfig[text]
   draw mplibgraphictext "\textbf{MPLIB}"
@@ -430,7 +433,27 @@ mplibfillandstrokeglyph pic
   withmplibcolors ("orange", 2/3red)
   ;
 \endmpfig
+\mpfig*
+  picture pic;
+  pic = btex \includegraphics[width=120bp]{hacker} etex shifted 50 dir 30;
+\endmpfig
+\mplibgroup{mymask}[asgroup="masking"]
+  \mpfig[off]
+    fill bbox pic withcolor 0.1;
+    label(btex \sffamily\bfseries\Huge Meta etex scaled 2, center pic) withcolor 1;
+  \endmpfig
+\endmplibgroup
+\mpfig[alt=test general masking]
+  fill bbox pic
+    withshadingmethod "linear"
+    withshadingcolors(3/4red,3/4blue)
+    ;
+  draw pic
+    withmaskinggroup "mymask"
+    ;
+\endmpfig
 \end{center}
+
 \mpliblegacybehavior{true}%
 
 \vskip 2\baselineskip
