@@ -4067,6 +4067,55 @@ local function put_tex_boxes (object,prescript)
       ry = (fourth.x_coord - tx)/th
       if sy == 0 then sy = 0.00001 end
     end
+
+%    \end{macrocode}
+% Attempt to address \#189, the displacement issue of pdf link boxes.
+%    \begin{macrocode}
+    local linkbox, startlinks, endlinks = texgetbox(tonumber(n)), {}, {}
+    for curr in node.traverse_id(node.id"whatsit", linkbox.head) do
+      if curr.subtype == node.subtype"pdf_start_link" then
+        tableinsert(startlinks, curr)
+      elseif curr.subtype == node.subtype"pdf_end_link" then
+        tableinsert(endlinks, curr)
+      end
+    end
+    for i = 1, #startlinks do
+      local x1 = node.rangedimensions(linkbox, linkbox.head, startlinks[i])/factor
+      local x2 = node.rangedimensions(linkbox, linkbox.head, endlinks[i])/factor
+      local y1 = -linkbox.depth/factor
+      local y2 = linkbox.height/factor
+      local xxt = { x1*sx + y1*ry, x2*sx + y1*ry, x1*sx + y2*ry, x2*sx + y2*ry, [0]=x1*sx }
+      local yyt = { x1*rx + y1*sy, x2*rx + y1*sy, x1*rx + y2*sy, x2*rx + y2*sy, [0]=x1*rx }
+      local llx = math.min(tableunpack(xxt))
+      local lly = math.min(tableunpack(yyt))
+      local urx = math.max(tableunpack(xxt))
+      local ury = math.max(tableunpack(yyt))
+      local dx = llx - xxt[1] + xxt[0]
+      local dy = lly - yyt[1] + yyt[0]
+      local start, stop = node.copy(startlinks[i]), node.copy(endlinks[i])
+      local rule = node.new"rule"
+      rule.subtype = 3 -- empty rule
+      rule.width   = (urx - llx) * factor
+      rule.height  = (ury - lly) * factor
+      rule.depth   = 0
+      start.next = rule; rule.prev = start
+      rule.next  = stop; stop.prev = rule
+      local mybox = node.hpack(start)
+      local num  = texboxes.localid + 1; texboxes.localid = num
+      tex.setbox(num, mybox)
+      put2output("\\vbox to0pt{\\vss\\hbox to0pt{\\kern%sbp\\raise%sbp\\box%i\\hss}}",
+                  tx + dx , ty + dy , num )
+    end
+    for i = 1, #startlinks do
+      linkbox.head = node.remove(linkbox.head, startlinks[i])
+      linkbox.head = node.remove(linkbox.head, endlinks[i])
+      node.free(startlinks[i])
+      node.free(endlinks[i])
+    end
+%    \end{macrocode}
+% End of attempt to address \#189. Still, links in multi-line text do not work properly.
+%    \begin{macrocode}
+
     start_pdf_code()
     pdf_literalcode("%f %f %f %f %f %f cm",sx,rx,ry,sy,tx,ty)
     put2output("\\mplibputtextbox{%i}",n)

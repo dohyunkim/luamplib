@@ -1,9 +1,12 @@
                        History of the luamplib package
 
+   * attempt to address #189, the issue on the displacement of pdf link boxes
+     N.B.  Still, links in multi-line text do not work properly.
+
 2026/04/28 2.41.0
    * new options for shading:
      - new macros withshadingpoints, withshadingcenters, and withshadingextend
-     - revise the documentation on shading accrodingly (1.2.6)
+     - revise the documentation on shading accordingly (1.2.6)
    * new options for transparency group, though both are not encouraged:
      - add colorspace option to \mplibgroup
      - allow color expressions in rgb/cmyk model after withmaskingbgcolor
