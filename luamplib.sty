@@ -54,7 +54,8 @@
   \catcode`\#=12 \catcode`\^=12 \catcode`\~=12 \catcode`\_=12
   \catcode`\&=12 \catcode`\$=12 \catcode`\%=12 \catcode`\^^M=12
 }
-\def\mplibputtextbox#1{\vbox to 0pt{\vss\hbox to 0pt{\raise\dp#1\copy#1\hss}}}
+\def\mplibputtextbox#1#2#3#4{\vbox to 0pt{\vss\hbox bdir0 to 0pt{%
+  \kern#2bp\pdfextension setmatrix{#4}\raise\dp#1\copy#1\hss}\kern#3bp}}
 \protected\def\usemplibgroup#1#{\usemplibgroupmain}
 \def\usemplibgroupmain#1{%
   \prependtomplibbox\hbox dir TLT\bgroup
@@ -549,11 +550,12 @@
   \cs_gset_nopar:cpn {luamplib.notaggedbox.#1}{#1}
   \bool_set_eq:NN \l__luamplib_tag_usetext_bool \l_tmpa_bool
 }
-\cs_set_nopar:Npn \mplibputtextbox #1
+\cs_set_nopar:Npn \mplibputtextbox #1 #2 #3 #4
 {
-  \vbox to 0pt{\vss\hbox to 0pt{
+  \vbox to 0pt{\vss\hbox bdir0 to 0pt{
+    \kern #2bp \pdfextension setmatrix {#4}
     \socket_use:nnn{tagsupport/luamplib/textext/put}{#1}{\raise\dp#1\copy#1}
-  \hss}}
+  \hss}\kern #3bp}
 }
 \cs_set_nopar:Npn \luamplibtagasgroupset
 {

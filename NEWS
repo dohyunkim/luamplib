@@ -1,7 +1,6 @@
                        History of the luamplib package
 
    * attempt to address #189, the issue on the displacement of pdf link boxes
-     N.B.  Still, links in multi-line text do not work properly.
 
 2026/04/28 2.41.0
    * new options for shading:
