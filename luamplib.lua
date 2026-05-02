@@ -1938,9 +1938,7 @@ local function put_tex_boxes (object,prescript)
     end
 
     local matrix = format("%f %f %f %f", sx, rx, ry, sy) :gsub(decimals,rmzeros)
-    put2output "\\pdfextension save\\relax"
     put2output("\\mplibputtextbox{%i}{%f}{%f}{%s}", n, tx, ty, matrix)
-    put2output "\\pdfextension restore\\relax"
   end
 end
 
