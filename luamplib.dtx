@@ -2227,6 +2227,7 @@ do
         luamplib.numbersystem or "scaled",
         tostring(luamplib.textextlabel),
         tostring(luamplib.legacyverbatimtex),
+        tostring(tex.currentgrouplevel), -- address #63
       }
       has_instancename = false
     end
@@ -5574,6 +5575,7 @@ end
 %    \end{macrocode}
 %
 %    Make |btex...etex| box zero-metric. Plus address the issue \#189.
+%    |bdir 0| seems to be redundant, but no harm.
 %    \begin{macrocode}
 \ifnum\outputmode>0 %
   \def\mplibputtextbox#1#2#3#4{%

@@ -332,6 +332,7 @@ do
         luamplib.numbersystem or "scaled",
         tostring(luamplib.textextlabel),
         tostring(luamplib.legacyverbatimtex),
+        tostring(tex.currentgrouplevel), -- address #63
       }
       has_instancename = false
     end
