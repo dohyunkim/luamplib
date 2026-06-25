@@ -681,10 +681,8 @@ luamplib.shadecolor = function (str)
   local res = process_color(str):match'"mpliboverridecolor=(.+)"'
   if res:find" cs " or res:find"@pdf.obj" then -- spot color shade
     local name, value, obj
-    if is_defined(format("l__color_named_%s_prop",v)) then
-      run_tex_code({
-        [[\color_export:nnN{]], str, [[}{backend}\mplib_@tempa]],
-      },ccexplat)
+    if is_defined(format("l__color_named_%s_prop",str)) then
+      run_tex_code({ [[\color_export:nnN{]], str, [[}{backend}\mplib_@tempa]] }, ccexplat)
       name, value = get_macro'mplib_@tempa':match'{(.-)}{(.-)}'
       local t = res:explode()
       obj = pdfmode and format("%s 0 R", ltx.pdf.object_id( t[1]:sub(2,-1) )) or t[2]
