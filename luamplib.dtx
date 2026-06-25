@@ -1925,7 +1925,7 @@ See source file '\inFileName' for licencing and contact information.
 %   \endmpfig
 %\end{verbatim}
 %\startmpfig
-%\mpfig u:=80; path p; p = unitsquare scaled u; def fsquare (expr n) = (point n of p -- point n+1 of p -- point n+2 of p -- point n+3 of p -- cycle) enddef; def rsquare (expr n) = (point n of p -- point n-1 of p -- point n-2 of p -- point n-3 of p -- cycle) enddef; fill p scaled 2 withshadingmethod  "coons" withcoonspatchinit (fsquare(0), red, green, blue, yellow) withcoonspatchnext (1, rsquare(0) shifted (u,0), yellow, red) withcoonspatchnext (1, fsquare(0) shifted (u,u), red, green) withcoonspatchnext (3, rsquare(2) shifted (0,u), yellow, red); pickup pencircle scaled 2; drawarrow fsquare(0) shifted (-1,-1) withcolor 1/3[blue,white]; drawarrow rsquare(0) shifted (u+1,-1) withcolor 1/3[red,white]; drawarrow rsquare(2) shifted (-1,u+1) withcolor (1,.5,0); drawarrow fsquare(0) shifted (u+1,u+1) withcolor (0,1,1); label.lft(btex \sffamily Edge 1 etex rotated 90, (u,u/2)) withcolor blue; label.bot(btex \sffamily Edge 1 etex , (3/2u,u)) withcolor 1/3[red,white]; label.rt(btex \sffamily Edge 3 etex rotated -90, (u,3/2u)) withcolor (0,1,1); drawarrow (u,-12)--(u,-3) withpen pencircle scaled 1; label.bot(btex \sffamily\footnotesize point 1 of patch\textsubscript{1} $=$ point 0 of patch\textsubscript{2} etex, (u,-10)); label.top(btex \sffamily Edge 0 etex, (u/2,0)) withcolor blue;\endmpfig
+%\mpfig u:=80; path p; p = unitsquare scaled u; def fsquare (expr n) = (point n of p -- point n+1 of p -- point n+2 of p -- point n+3 of p -- cycle) enddef; def rsquare (expr n) = (point n of p -- point n-1 of p -- point n-2 of p -- point n-3 of p -- cycle) enddef; fill p scaled 2 withshadingmethod  "coons" withcoonspatchinit (fsquare(0), red, green, blue, yellow) withcoonspatchnext (1, rsquare(0) shifted (u,0), yellow, red) withcoonspatchnext (1, fsquare(0) shifted (u,u), red, green) withcoonspatchnext (3, rsquare(2) shifted (0,u), yellow, red); pickup pencircle scaled 2; drawarrow fsquare(0) shifted (-1,-1) withcolor (0,1,1); drawarrow rsquare(0) shifted (u+1,-1) withcolor (1,.6,1); drawarrow rsquare(2) shifted (-1,u+1) withcolor (1,.6,1); drawarrow fsquare(0) shifted (u+1,u+1) withcolor (0,1,1); label.lft(btex \sffamily Edge 1 etex rotated 90, (u,u/2)) withcolor (0,1,1); label.bot(btex \sffamily Edge 1 etex , (3/2u,u)) withcolor (1,.6,1); label.rt(btex \sffamily Edge 3 etex rotated -90, (u,3/2u)) withcolor (0,1,1); drawarrow (u,-12)--(u,-3) withpen pencircle scaled 1; label.bot(btex \sffamily\footnotesize point 1 of patch\textsubscript{1} $=$ point 0 of patch\textsubscript{2} etex, (u,-10)); label.top(btex \sffamily Edge 0 etex, (u/2,0)) withcolor (0,1,1);\endmpfig
 %\stopmpfig{18}
 %\begin{verbatim}
 %   \mpfig
@@ -1978,7 +1978,7 @@ See source file '\inFileName' for licencing and contact information.
 %   the second argument should also be given in string type.
 %   It is assumed that the orientation of the inner path is the same as the outer path.
 %   When this macro is not given, the default value will be an imaginary path
-%   scaled by half the size of the outer path obtained from the object of shading.
+%   scaled by half the size of the outer path.
 %
 % \item[withtensorpatchnext (\meta{number}, \meta{path} \textbar\ \meta{string},
 %   \meta{path} \textbar\ \meta{string}, \meta{color}, \meta{color})]
@@ -2719,12 +2719,14 @@ do
       [[\def\set@color{\global\mplibtmptoks\expandafter{\current@color}}]],
       [[\color%s\endgroup]],
     },
-    l3color = tableconcat{
+    l3color = is_defined"__color_select:nn" and tableconcat{
       [[\begingroup\def\__color_select:N#1{\expandafter\__color_select:nn#1}]],
       [[\def\__color_backend_select:nn#1#2{\global\mplibtmptoks{#1 #2}}]],
       [[\def\__kernel_backend_literal:e#1{\global\mplibtmptoks\expandafter{\expanded{#1}}}]],
       [[\color_select:n%s\endgroup]],
-    },
+    } or pdfmode and "\\begingroup\\setbox0\\hbox{{\\color_select:n%s\z
+      \\global\\mplibtmptoks\\expandafter{\\current@color}}}\\endgroup"
+      or "\\color_export:nnN%s{backend}\\l_tmpa_tl\\mplibtmptoks\\expandafter{\\l_tmpa_tl}" ,
   }
   function process_color (str)
     if str then
@@ -2749,11 +2751,28 @@ do
       end
       run_tex_code(myfmt:format(str), ccexplat or catat11)
       local t = texgettoks"mplibtmptoks"
+      if not pdfmode and myfmt == mplibcolorfmt.l3color and not is_defined"__color_select:nn" then
+        local model, value = t:match"{(.-)}{(.-)}"
+        if model == "rgb" or model == "cmyk" or model == "gray" then
+          run_tex_code(format("\\begingroup\\setbox0\\hbox{{\\color_select:n%s\z
+          \\global\\mplibtmptoks\\expandafter{\\current@color}}}\\endgroup",str), ccexplat)
+          t = texgettoks"mplibtmptoks"
+        else
+          run_tex_code(format("\\prop_get:NnN\\g__color_colorants_prop{%s}\\l_tmpa_tl\z
+          \\prop_get:NeN\\g__color_backend_colorant_prop{/\\l_tmpa_tl}\\l_tmpa_tl",model), ccexplat)
+          t = format("pdf:bc %s [%s]", get_macro"l_tmpa_tl", value)
+        end
+      end
       if not pdfmode then
         if t:find"^hsb" or not t:find"%d" then
           t = "color push " .. t
         elseif not t:find"^pdf" then
           t = t:gsub("%a+ (.+)","pdf:bc [%1]")
+        end
+      elseif is_defined"ver@colorspace.sty" and t:find"^/&" then
+        local a,b,c,d = t:match"^(.- cs) (.- CS) (.- scn?) (.- SCN?)$"
+        if a and b and c and d then
+          t = tableconcat({ a, c, b, d }, " ")
         end
       end
       return format('1 withprescript "mpliboverridecolor=%s"', t)
@@ -2972,7 +2991,7 @@ end
 
 luamplib.shadecolor = function (str)
   local res = process_color(str):match'"mpliboverridecolor=(.+)"'
-  if res:find" cs " or res:find"@pdf.obj" then -- spot color shade: l3 only
+  if res:find" cs " or res:find"@pdf.obj" then -- spot color shade
 %    \end{macrocode}
 %   An example of spot color shading:
 %\begin{verbatim}
@@ -3054,15 +3073,21 @@ luamplib.shadecolor = function (str)
 %    \end{document}
 %\end{verbatim}
 %    \begin{macrocode}
-    run_tex_code({
-      [[\color_export:nnN{]], str, [[}{backend}\mplib_@tempa]],
-    },ccexplat)
-    local name, value = get_macro'mplib_@tempa':match'{(.-)}{(.-)}'
-    local t, obj = res:explode()
-    if pdfmode then
-      obj = format("%s 0 R", ltx.pdf.object_id( t[1]:sub(2,-1) ))
+    local name, value, obj
+    if is_defined(format("l__color_named_%s_prop",v)) then
+      run_tex_code({
+        [[\color_export:nnN{]], str, [[}{backend}\mplib_@tempa]],
+      },ccexplat)
+      name, value = get_macro'mplib_@tempa':match'{(.-)}{(.-)}'
+      local t = res:explode()
+      obj = pdfmode and format("%s 0 R", ltx.pdf.object_id( t[1]:sub(2,-1) )) or t[2]
+    elseif is_defined"ver@colorspace.sty" then
+      run_tex_code({"\\extractcolorspec{", str, "}\\mplib@tempa"}, catat11)
+      name, value = get_macro"mplib@tempa":match"{(.-)}{(.-)}"
+      value = value:gsub(","," ")
+      obj = get_macro("spc@ir@"..name):match("%d+ 0 R")
     else
-      obj = t[2]
+      err "l3color or colorspace is supported for spot color shading"
     end
     return format('(1) withprescript"mplib_spotcolor=%s:%s:%s"', value,obj,name)
   end

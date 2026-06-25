@@ -448,12 +448,14 @@ do
       [[\def\set@color{\global\mplibtmptoks\expandafter{\current@color}}]],
       [[\color%s\endgroup]],
     },
-    l3color = tableconcat{
+    l3color = is_defined"__color_select:nn" and tableconcat{
       [[\begingroup\def\__color_select:N#1{\expandafter\__color_select:nn#1}]],
       [[\def\__color_backend_select:nn#1#2{\global\mplibtmptoks{#1 #2}}]],
       [[\def\__kernel_backend_literal:e#1{\global\mplibtmptoks\expandafter{\expanded{#1}}}]],
       [[\color_select:n%s\endgroup]],
-    },
+    } or pdfmode and "\\begingroup\\setbox0\\hbox{{\\color_select:n%s\z
+      \\global\\mplibtmptoks\\expandafter{\\current@color}}}\\endgroup"
+      or "\\color_export:nnN%s{backend}\\l_tmpa_tl\\mplibtmptoks\\expandafter{\\l_tmpa_tl}" ,
   }
   function process_color (str)
     if str then
@@ -478,11 +480,28 @@ do
       end
       run_tex_code(myfmt:format(str), ccexplat or catat11)
       local t = texgettoks"mplibtmptoks"
+      if not pdfmode and myfmt == mplibcolorfmt.l3color and not is_defined"__color_select:nn" then
+        local model, value = t:match"{(.-)}{(.-)}"
+        if model == "rgb" or model == "cmyk" or model == "gray" then
+          run_tex_code(format("\\begingroup\\setbox0\\hbox{{\\color_select:n%s\z
+          \\global\\mplibtmptoks\\expandafter{\\current@color}}}\\endgroup",str), ccexplat)
+          t = texgettoks"mplibtmptoks"
+        else
+          run_tex_code(format("\\prop_get:NnN\\g__color_colorants_prop{%s}\\l_tmpa_tl\z
+          \\prop_get:NeN\\g__color_backend_colorant_prop{/\\l_tmpa_tl}\\l_tmpa_tl",model), ccexplat)
+          t = format("pdf:bc %s [%s]", get_macro"l_tmpa_tl", value)
+        end
+      end
       if not pdfmode then
         if t:find"^hsb" or not t:find"%d" then
           t = "color push " .. t
         elseif not t:find"^pdf" then
           t = t:gsub("%a+ (.+)","pdf:bc [%1]")
+        end
+      elseif is_defined"ver@colorspace.sty" and t:find"^/&" then
+        local a,b,c,d = t:match"^(.- cs) (.- CS) (.- scn?) (.- SCN?)$"
+        if a and b and c and d then
+          t = tableconcat({ a, c, b, d }, " ")
         end
       end
       return format('1 withprescript "mpliboverridecolor=%s"', t)
@@ -660,16 +679,22 @@ end
 
 luamplib.shadecolor = function (str)
   local res = process_color(str):match'"mpliboverridecolor=(.+)"'
-  if res:find" cs " or res:find"@pdf.obj" then -- spot color shade: l3 only
-    run_tex_code({
-      [[\color_export:nnN{]], str, [[}{backend}\mplib_@tempa]],
-    },ccexplat)
-    local name, value = get_macro'mplib_@tempa':match'{(.-)}{(.-)}'
-    local t, obj = res:explode()
-    if pdfmode then
-      obj = format("%s 0 R", ltx.pdf.object_id( t[1]:sub(2,-1) ))
+  if res:find" cs " or res:find"@pdf.obj" then -- spot color shade
+    local name, value, obj
+    if is_defined(format("l__color_named_%s_prop",v)) then
+      run_tex_code({
+        [[\color_export:nnN{]], str, [[}{backend}\mplib_@tempa]],
+      },ccexplat)
+      name, value = get_macro'mplib_@tempa':match'{(.-)}{(.-)}'
+      local t = res:explode()
+      obj = pdfmode and format("%s 0 R", ltx.pdf.object_id( t[1]:sub(2,-1) )) or t[2]
+    elseif is_defined"ver@colorspace.sty" then
+      run_tex_code({"\\extractcolorspec{", str, "}\\mplib@tempa"}, catat11)
+      name, value = get_macro"mplib@tempa":match"{(.-)}{(.-)}"
+      value = value:gsub(","," ")
+      obj = get_macro("spc@ir@"..name):match("%d+ 0 R")
     else
-      obj = t[2]
+      err "l3color or colorspace is supported for spot color shading"
     end
     return format('(1) withprescript"mplib_spotcolor=%s:%s:%s"', value,obj,name)
   end
