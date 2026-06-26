@@ -2726,7 +2726,17 @@ do
       [[\color_select:n%s\endgroup]],
     } or pdfmode and "\\begingroup\\setbox0\\hbox{{\\color_select:n%s\z
       \\global\\mplibtmptoks\\expandafter{\\current@color}}}\\endgroup"
-      or "\\color_export:nnN%s{backend}\\l_tmpa_tl\\mplibtmptoks\\expandafter{\\l_tmpa_tl}" ,
+      or "\\def\\mplib@tempb#1#2{\\str_case:nnF{#1}\z
+       {{rgb}{\\mplibtmptoks{pdf:bc [#2]}}\z
+        {cmyk}{\\mplibtmptoks{pdf:bc [#2]}}\z
+        {gray}{\\mplibtmptoks{pdf:bc [#2]}}}\z
+       {\\prop_get:NnN\\g__color_colorants_prop{#1}\\l_tmpa_tl\z
+        \\tl_if_eq:NNTF\\l_tmpa_tl\\q_no_value\z
+         {\\No_Support_of_DeviceN_in_DVI_luamplib\\mplibtmptoks{ERROR}}\z
+         {\\prop_get:NeN\\g__color_backend_colorant_prop{/\\l_tmpa_tl}\\l_tmpa_tl\z
+          \\mplibtmptoks\\expanded{{pdf:bc \\l_tmpa_tl\\space [#2]}}}}}\z
+      \\color_export:nnN%s{backend}\\l_tmpa_tl\\mplibtmptoks\\expandafter{\\l_tmpa_tl}\z
+      \\expandafter\\mplib@tempb\\l_tmpa_tl" ,
   }
   function process_color (str)
     if str then
@@ -2751,18 +2761,6 @@ do
       end
       run_tex_code(myfmt:format(str), ccexplat or catat11)
       local t = texgettoks"mplibtmptoks"
-      if not pdfmode and myfmt == mplibcolorfmt.l3color and not is_defined"__color_select:nn" then
-        local model, value = t:match"{(.-)}{(.-)}"
-        if model == "rgb" or model == "cmyk" or model == "gray" then
-          run_tex_code(format("\\begingroup\\setbox0\\hbox{{\\color_select:n%s\z
-          \\global\\mplibtmptoks\\expandafter{\\current@color}}}\\endgroup",str), ccexplat)
-          t = texgettoks"mplibtmptoks"
-        else
-          run_tex_code(format("\\prop_get:NnN\\g__color_colorants_prop{%s}\\l_tmpa_tl\z
-          \\prop_get:NeN\\g__color_backend_colorant_prop{/\\l_tmpa_tl}\\l_tmpa_tl",model), ccexplat)
-          t = format("pdf:bc %s [%s]", get_macro"l_tmpa_tl", value)
-        end
-      end
       if not pdfmode then
         if t:find"^hsb" or not t:find"%d" then
           t = "color push " .. t
@@ -3074,7 +3072,15 @@ luamplib.shadecolor = function (str)
 %\end{verbatim}
 %    \begin{macrocode}
     local name, value, obj
-    if is_defined(format("l__color_named_%s_prop",str)) then
+    local l3 = true
+    for _,v in ipairs( str:explode"!" ) do
+      if not v:find("^%s*%d+%s*$") then
+        if not is_defined(format("l__color_named_%s_prop", v)) then
+          l3 = false; break
+        end
+      end
+    end
+    if l3 then
       run_tex_code({ [[\color_export:nnN{]], str, [[}{backend}\mplib_@tempa]] }, ccexplat)
       name, value = get_macro'mplib_@tempa':match'{(.-)}{(.-)}'
       local t = res:explode()
