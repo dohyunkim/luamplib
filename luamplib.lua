@@ -693,13 +693,8 @@ luamplib.shadecolor = function (str)
       name, value = get_macro'mplib_@tempa':match'{(.-)}{(.-)}'
       local t = res:explode()
       obj = pdfmode and format("%s 0 R", ltx.pdf.object_id( t[1]:sub(2,-1) )) or t[2]
-    elseif is_defined"ver@colorspace.sty" then
-      run_tex_code({"\\extractcolorspec{", str, "}\\mplib@tempa"}, catat11)
-      name, value = get_macro"mplib@tempa":match"{(.-)}{(.-)}"
-      value = value:gsub(","," ")
-      obj = get_macro("spc@ir@"..name):match("%d+ 0 R")
     else
-      err "l3color or colorspace is supported for spot color shading"
+      err "only l3color is supported for spot color shading"
     end
     return format('(1) withprescript"mplib_spotcolor=%s:%s:%s"', value,obj,name)
   end

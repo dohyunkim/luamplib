@@ -1128,6 +1128,7 @@ See source file '\inFileName' for licencing and contact information.
 %     Starting and ending colors,
 %     default value being |(white,| |black)|.
 %     String-type argument is regarded as the color expression of \TeX\ side.
+%     For spot colors, we support only \pkg{l3color} module.
 %   \item[withshadingdomain \meta{pair}]
 %     Limiting values of parametric variable
 %     that varies on the axis of color gradient,
@@ -1258,7 +1259,7 @@ See source file '\inFileName' for licencing and contact information.
 %\startmpfig
 %\mppattern{mypatt}[xstep=10, ystep=7, matrix="rotated 45",]\mpfig draw (up--down) scaled 5 withcolor 2/3[blue,white]; draw (left--right) scaled 5 withcolor 2/3[red,white];\endmpfig\endmppattern
 %\mpfig mplibdrawglyph image(draw fullcircle scaled 100; draw reverse fullcircle scaled 40;) withmppattern "mypatt" withpen pencircle scaled 1 withcolor \mpcolor{red!50!blue!50}; \endmpfig
-%\stopmpfig{1}
+%\stopmpfig{6}
 %\begin{verbatim}
 %    \mpfig
 %      mplibdrawglyph image(
@@ -3078,13 +3079,8 @@ luamplib.shadecolor = function (str)
       name, value = get_macro'mplib_@tempa':match'{(.-)}{(.-)}'
       local t = res:explode()
       obj = pdfmode and format("%s 0 R", ltx.pdf.object_id( t[1]:sub(2,-1) )) or t[2]
-    elseif is_defined"ver@colorspace.sty" then
-      run_tex_code({"\\extractcolorspec{", str, "}\\mplib@tempa"}, catat11)
-      name, value = get_macro"mplib@tempa":match"{(.-)}{(.-)}"
-      value = value:gsub(","," ")
-      obj = get_macro("spc@ir@"..name):match("%d+ 0 R")
     else
-      err "l3color or colorspace is supported for spot color shading"
+      err "only l3color is supported for spot color shading"
     end
     return format('(1) withprescript"mplib_spotcolor=%s:%s:%s"', value,obj,name)
   end
