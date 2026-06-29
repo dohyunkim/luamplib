@@ -3014,14 +3014,6 @@ luamplib.shadecolor = function (str)
 %        alternative-values = {0, 0.15, 0.51, 0}
 %      }
 %      \color_set:nnn{spotC}{pantone1215}{1}
-%    \color_model_new:nnn { pantone2040 }
-%      { Separation }
-%      {
-%        name = PANTONE~2040~U ,
-%        alternative-model = cmyk ,
-%        alternative-values = {0, 0.28, 0.21, 0.04}
-%      }
-%      \color_set:nnn{spotD}{pantone2040}{1}
 %    \ExplSyntaxOff
 %    \begin{document}
 %    \begin{mplibcode}
@@ -3035,7 +3027,7 @@ luamplib.shadecolor = function (str)
 %        )
 %        withshadingstep (
 %          withshadingfraction 1
-%          withshadingcolors ("spotC","spotD")
+%          withshadingcolors ("spotC","magenta!50")
 %        )
 %        ;
 %    endfig;
@@ -3075,7 +3067,8 @@ luamplib.shadecolor = function (str)
     local l3 = true
     for _,v in ipairs( str:explode"!" ) do
       if not v:find("^%s*%d+%s*$") then
-        if not is_defined(format("l__color_named_%s_prop", v)) then
+        local prop = get_macro(format("l__color_named_%s_prop", v))
+        if not prop or prop == "" then
           l3 = false; break
         end
       end
@@ -3095,7 +3088,7 @@ luamplib.shadecolor = function (str)
     end
     return format('(1) withprescript"mplib_spotcolor=%s:%s:%s"', value,obj,name)
   end
-  return colorsplit(res)
+  return format('(%s) withprescript"mplib_texcolor=%s"', tableconcat(colorsplit(res),","), str)
 end
 
 %    \end{macrocode}
@@ -4935,17 +4928,11 @@ do
     local colors, devicen = { }
     for i,v in ipairs(colortab) do
       colors[i] = { }
-      for ii,vv in ipairs(v) do
-        if type(vv) == "string" and vv:find"%s" then
-          local t = vv:explode()
-          for iii,vvv in ipairs(t) do
-            colors[i][iii] = math.floor(vvv * 0xFF)
-          end
-          devicen = #t
-        else
-          colors[i][ii] = math.floor(vv * 0xFF)
-        end
+      local t = tableconcat(v," "):explode()
+      for ii,vv in ipairs(t) do
+        colors[i][ii] = math.floor(vv * 0xFF)
       end
+      devicen = #t
     end
     if not coons then return colors, devicen end
     local t = { }
@@ -5190,15 +5177,21 @@ do
       local names, pos, objref = { }, -1, ""
       local script = object.prescript:explode"\13+"
       for i=#script,1,-1 do
+        local name, value
         if script[i]:find"mplib_spotcolor" then
-          local t, name, value = script[i]:explode"="[2]:explode":"
+          local t = script[i]:explode"="[2]:explode":"
           value, objref, name = t[1], t[2], t[3]
+        elseif script[i]:find"mplib_texcolor" then
+          local t = script[i]:explode"="[2]:explode"!"
+          name, value = t[1], (t[2] or 100)/100
+        end
+        if name and value then
           if not names[name] then
             pos = pos+1
             names[name] = pos
             names[#names+1] = name
           end
-          t = { }
+          local t = { }
           for j=1,names[name] do t[#t+1] = 0 end
           t[#t+1] = value
           tableinsert(#ca == #cb and ca or cb, t)
