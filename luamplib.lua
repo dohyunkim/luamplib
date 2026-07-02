@@ -427,6 +427,14 @@ end
 local ccexplat = luatexbase.registernumber"luamplibcctabexplat"
 
 local process_color, process_mplibcolor
+local function is_xcolor (str)
+  for _,v in ipairs(str:explode"!") do
+    if not v:find("^%s*%d+%s*$") and is_defined("\\color@"..v) then -- priority to xcolor
+      return true
+    end
+  end
+  return false
+end
 local function colorsplit (res)
   local t, tt = { }, res:gsub("[%[%]]","",2):explode()
   local be = tt[1]:find"^%d" and 1 or 2
@@ -474,18 +482,8 @@ do
       end
       local myfmt = mplibcolorfmt[colfmt]
       if colfmt == "l3color" and is_defined"color" then
-        if str:find("%b[]") then
+        if str:find("%b[]") or is_xcolor(str:match"{(.+)}") then
           myfmt = mplibcolorfmt.xcolor
-        else
-          for _,v in ipairs(str:match"{(.+)}":explode"!") do
-            if not v:find("^%s*%d+%s*$") then
-              local pp = get_macro(format("l__color_named_%s_prop",v))
-              if not pp or pp == "" then
-                myfmt = mplibcolorfmt.xcolor
-                break
-              end
-            end
-          end
         end
       end
       run_tex_code(myfmt:format(str), ccexplat or catat11)
@@ -675,26 +673,30 @@ luamplib.gettexcolor = function (str, rgb)
   return { t[1], t[1], t[1] }
 end
 
+local function get_spc_name_obj (spot)
+  if is_defined"spc@csall" then
+    for v in get_macro"spc@csall":gmatch"{(.-)}" do
+      local n, r = get_macro("spc@ir@"..v):match"^(.-) (%d+ 0 R)"
+      if spot == n then
+        return v, r
+      end
+    end
+  else
+    err"only l3color and colorspace is supported for spot color"
+  end
+end
 luamplib.shadecolor = function (str)
   local res = process_color(str):match'"mpliboverridecolor=(.+)"'
   if res:find" cs " or res:find"@pdf.obj" then -- spot color shade
     local name, value, obj
-    local l3 = true
-    for _,v in ipairs( str:explode"!" ) do
-      if not v:find("^%s*%d+%s*$") then
-        local prop = get_macro(format("l__color_named_%s_prop", v))
-        if not prop or prop == "" then
-          l3 = false; break
-        end
-      end
-    end
-    if l3 then
-      run_tex_code({ [[\color_export:nnN{]], str, [[}{backend}\mplib_@tempa]] }, ccexplat)
+    if not is_xcolor(str) then
+      run_tex_code({ "\\color_export:nnN{", str, "}{backend}\\mplib_@tempa" }, ccexplat)
       name, value = get_macro'mplib_@tempa':match'{(.-)}{(.-)}'
       local t = res:explode()
       obj = pdfmode and format("%s 0 R", ltx.pdf.object_id( t[1]:sub(2,-1) )) or t[2]
-    else
-      err "only l3color is supported for spot color shading"
+    else -- colorspace: mixing is allowed only in preamble
+      name, value = res:match"^(.-) cs (.-) sc"
+      name, obj = get_spc_name_obj(name)
     end
     return format('(1) withprescript"mplib_spotcolor=%s:%s:%s"', value,obj,name)
   end
@@ -3067,13 +3069,15 @@ do
       if not color then return end
       local cs
       if color:find" cs " or color:find"@pdf.obj" then
-        local t = color:explode()
         if pdfmode then
-          cs = format("%s 0 R", ltx.pdf.object_id( t[1]:sub(2,-1) ))
-          color = t[3]
+          local name
+          name, color = color:match"^(.-) cs (.-) sc"
+          cs = format("%s 0 R", ltx.pdf.object_id( name:sub(2,-1) ))
+          if cs == "0 0 R" then -- assumes colorspace.sty
+            _, cs = get_spc_name_obj(name)
+          end
         else
-          cs = t[2]
-          color = t[3]:match"%[(.+)%]"
+          cs, color = color:match"pdf:bc (.-) %[(.-)%]"
         end
       else
         local t = colorsplit(color)
