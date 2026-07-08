@@ -1,5 +1,12 @@
                        History of the luamplib package
 
+   * utilize l3color's 'raw' export function to obtain color literals
+   * fix a bug that blocked shading between spot color and process color:
+     only l3color's spot colors are supported for this feature,
+     as colorspace.sty allows a new colorspace only in the preamble.
+   * using these macros multiple times is allowed:
+     withcoonspatchinit, withtensorpatchinit, withtrianglepatchinit.
+
 2026/06/19 2.42.2
    * fix new shading methods for TeX colors
 
