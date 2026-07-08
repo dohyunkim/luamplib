@@ -448,12 +448,14 @@ do
   local colfmt = ccexplat and "l3color" or "xcolor"
   local mplibcolorfmt = {
     xcolor = [[{\setbox0\hbox{{\color%s\global\mplibtmptoks\expandafter{\current@color}}}}]],
-    l3color = is_defined"__color_select:nn" and tableconcat{
+    l3color = is_defined"__color_select:nn" and tableconcat{ -- to be cleaned up
       [[\begingroup\def\__color_select:N#1{\expandafter\__color_select:nn#1}]],
       [[\def\__color_backend_select:nn#1#2{\global\mplibtmptoks{#1 #2}}]],
       [[\def\__kernel_backend_literal:e#1{\global\mplibtmptoks\expandafter{\expanded{#1}}}]],
       [[\color_select:n%s\endgroup]],
-    } or [[\color_export:nnN%s{raw}\l_tmpa_tl\mplibtmptoks\expandafter{\l_tmpa_tl}]],
+    } or is_defined"__color_export_format_raw:nnN" and
+      [[\color_export:nnN%s{raw}\l_tmpa_tl\mplibtmptoks\expandafter{\l_tmpa_tl}]]
+    or [[{\setbox0\hbox{{\color_select:n%s\global\mplibtmptoks\expanded{{\current@color}}}}}]]
   }
   function process_color (str)
     if str then
@@ -2192,7 +2194,7 @@ if pdfmode then
     return on,true
   end
 else
-  function update_pdfobjs (os, stream)
+  function update_pdfobjs (os, stream, hex)
     local key = os
     if stream then key = key..stream end
     local on = key and pdfobjs[key]
@@ -2201,7 +2203,11 @@ else
     end
     on = pdfetcs.cnt or 1
     if stream then
-      texsprint(format("\\special{pdf:stream @mplibpdfobj%s (%s) <<%s>>}",on,stream,os))
+      if hex then
+        texsprint(format("\\special{pdf:stream @mplibpdfobj%s <%s> <<%s>>}",on,stream,os))
+      else
+        texsprint(format("\\special{pdf:stream @mplibpdfobj%s (%s) <<%s>>}",on,stream,os))
+      end
     elseif os then
       texsprint(format("\\special{pdf:obj @mplibpdfobj%s %s}",on,os))
     else
@@ -2451,9 +2457,7 @@ do
       on, new = update_pdfobjs(dict, stream)
     else
       stream = format(("%02X"):rep(stream:len()), stream:byte(1,stream:len()))
-      on, new = update_pdfobjs(format(
-        "<<%s/Filter[/ASCIIHexDecode]/Length %d>>\nstream\n%s\nendstream",
-        dict, stream:len(), stream))
+      on, new = update_pdfobjs(dict, stream, true) -- hex is true
     end
     add_shading_resources(on, new)
     return on
