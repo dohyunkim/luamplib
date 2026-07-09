@@ -11,8 +11,8 @@
 
 luatexbase.provides_module {
   name          = "luamplib",
-  version       = "2.42.2",
-  date          = "2026/06/19",
+  version       = "2.42.3",
+  date          = "2026/07/09",
   description   = "Lua package to typeset Metapost with LuaTeX's MPLib.",
 }
 
@@ -427,6 +427,14 @@ end
 local ccexplat = luatexbase.registernumber"luamplibcctabexplat"
 
 local process_color, process_mplibcolor
+local function is_xcolor (str)
+  for _,v in ipairs(str:explode"!") do
+    if not v:find("^%s*%d+%s*$") and is_defined("\\color@"..v) then -- priority to xcolor
+      return true
+    end
+  end
+  return false
+end
 local function colorsplit (res)
   local t, tt = { }, res:gsub("[%[%]]","",2):explode()
   local be = tt[1]:find"^%d" and 1 or 2
@@ -434,26 +442,20 @@ local function colorsplit (res)
     if not tonumber(tt[i]) then break end
     t[#t+1] = tt[i]
   end
-  if #t == 0 then -- named color in DVI mode with no DocumentMetadata
-    run_tex_code{"\\extractcolorspecs{", tt[3], "}\\mplibtmpa\\mplibtmpb"}
-    t = get_macro"mplibtmpb":explode","
-  end
   return t
 end
 do
   local colfmt = ccexplat and "l3color" or "xcolor"
   local mplibcolorfmt = {
-    xcolor = tableconcat{
-      [[\begingroup\let\XC@mcolor\relax]],
-      [[\def\set@color{\global\mplibtmptoks\expandafter{\current@color}}]],
-      [[\color%s\endgroup]],
-    },
-    l3color = tableconcat{
+    xcolor = [[{\setbox0\hbox{{\color%s\global\mplibtmptoks\expandafter{\current@color}}}}]],
+    l3color = is_defined"__color_select:nn" and tableconcat{ -- to be cleaned up
       [[\begingroup\def\__color_select:N#1{\expandafter\__color_select:nn#1}]],
       [[\def\__color_backend_select:nn#1#2{\global\mplibtmptoks{#1 #2}}]],
       [[\def\__kernel_backend_literal:e#1{\global\mplibtmptoks\expandafter{\expanded{#1}}}]],
       [[\color_select:n%s\endgroup]],
-    },
+    } or is_defined"__color_export_format_raw:nnN" and
+      [[\color_export:nnN%s{raw}\l_tmpa_tl\mplibtmptoks\expandafter{\l_tmpa_tl}]]
+    or [[{\setbox0\hbox{{\color_select:n%s\global\mplibtmptoks\expanded{{\current@color}}}}}]]
   }
   function process_color (str)
     if str then
@@ -462,27 +464,31 @@ do
       end
       local myfmt = mplibcolorfmt[colfmt]
       if colfmt == "l3color" and is_defined"color" then
-        if str:find("%b[]") then
+        if str:find("%b[]") or is_xcolor(str:match"{(.+)}") then
           myfmt = mplibcolorfmt.xcolor
-        else
-          for _,v in ipairs(str:match"{(.+)}":explode"!") do
-            if not v:find("^%s*%d+%s*$") then
-              local pp = get_macro(format("l__color_named_%s_prop",v))
-              if not pp or pp == "" then
-                myfmt = mplibcolorfmt.xcolor
-                break
-              end
-            end
-          end
         end
       end
       run_tex_code(myfmt:format(str), ccexplat or catat11)
       local t = texgettoks"mplibtmptoks"
       if not pdfmode then
-        if t:find"^hsb" or not t:find"%d" then
-          t = "color push " .. t
-        elseif not t:find"^pdf" then
-          t = t:gsub("%a+ (.+)","pdf:bc [%1]")
+        if t:find" cs " then -- spot color raw export
+          local name = t:match("^/(.-) cs ")
+          texsprint(ccexplat, {
+            "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
+            name, "}{\\pdf_object_ref:n{", name, "}}"
+          })
+        elseif t:find"^hsb" then
+          local spec = t:gsub("^hsb ",""):gsub(" ",",")
+          run_tex_code{"\\convertcolorspec{hsb}{", spec, "}{rgb}\\mplibtmpa"}
+          t = format("rgb %s", get_macro"mplibtmpa":gsub(","," "))
+        elseif not t:find"%d" then -- named color
+          run_tex_code{"\\extractcolorspecs{", t, "}\\mplibtmpa\\mplibtmpb"}
+          t = format("%s %s", get_macro"mplibtmpa", get_macro"mplibtmpb":gsub(","," "))
+        end
+      elseif is_defined"ver@colorspace.sty" and t:find"^/&" then
+        local a,b,c,d = t:match"^(.- cs) (.- CS) (.- scn?) (.- SCN?)$"
+        if a and b and c and d then
+          t = tableconcat({ a, c, b, d }, " ")
         end
       end
       return format('1 withprescript "mpliboverridecolor=%s"', t)
@@ -491,7 +497,7 @@ do
   end
   function process_mplibcolor(str)
     local res = process_color(str)
-    if res:find" cs " or res:find"@pdf.obj" or res:find"color push" then return res end
+    if res:find" cs " or res:find"@pdf.obj" then return res end
     res = colorsplit(res:match'"mpliboverridecolor=(.+)"')
     return format("(%s)", tableconcat(res, ","))
   end
@@ -635,45 +641,80 @@ do
   end
 end
 
-luamplib.gettexcolor = function (str, rgb)
-  local res = process_color(str):match'"mpliboverridecolor=(.+)"'
-  if res:find" cs " or res:find"@pdf.obj" then
-    if not rgb then
-      warn("%s is a spot color. Forced to CMYK", str)
+local function get_spc_name_obj (spot)
+  if is_defined"spc@csall" then
+    for v in get_macro"spc@csall":gmatch"{(.-)}" do
+      local n, r = get_macro("spc@ir@"..v):match"^(.-) (%d+ 0 R)"
+      if spot == n then
+        return v, r
+      end
     end
-    run_tex_code({
-      "\\color_export:nnN{",
-      str,
-      "}{",
-      rgb and "space-sep-rgb" or "space-sep-cmyk",
-      "}\\mplib_@tempa",
-    },ccexplat)
-    return get_macro"mplib_@tempa":explode()
+  else
+    err"only l3color or colorspace is supported for spot color"
   end
-  local t = colorsplit(res)
-  if #t == 3 or not rgb then return t end
-  if #t == 4 then
-    return { 1 - math.min(1,t[1]+t[4]), 1 - math.min(1,t[2]+t[4]), 1 - math.min(1,t[3]+t[4]) }
-  end
-  return { t[1], t[1], t[1] }
 end
-
+do
+  local function cmyk2rgb (t)
+    return {
+      1 - math.min(1, t[1]+t[4]),
+      1 - math.min(1, t[2]+t[4]),
+      1 - math.min(1, t[3]+t[4]),
+    }
+  end
+  luamplib.gettexcolor = function (str, rgb)
+    local res = process_color(str):match'"mpliboverridecolor=(.+)"'
+    if res:find" cs " or res:find"@pdf.obj" then
+      if not rgb then
+        warn("%s is a spot color. Forced to CMYK", str)
+      end
+      if not is_xcolor(str) then
+        run_tex_code({
+          "\\color_export:nnN{",
+          str,
+          "}{",
+          rgb and "space-sep-rgb" or "space-sep-cmyk",
+          "}\\mplib@tempa",
+        },ccexplat)
+        return get_macro"mplib@tempa":explode()
+      else
+        local name, value = res:match"^(.-) cs (.-) sc"
+        local t = get_macro("spc@ascmyk@"..get_spc_name_obj(name)):explode"," -- mixed not work
+        for i = 1, #t do
+          t[i] = t[i] * value
+        end
+        return rgb and cmyk2rgb(t) or t
+      end
+    end
+    local t = colorsplit(res)
+    if #t == 3 or not rgb then return t end
+    if #t == 4 then return cmyk2rgb(t) end
+    return { t[1], t[1], t[1] }
+  end
+end
 luamplib.shadecolor = function (str)
   local res = process_color(str):match'"mpliboverridecolor=(.+)"'
-  if res:find" cs " or res:find"@pdf.obj" then -- spot color shade: l3 only
-    run_tex_code({
-      [[\color_export:nnN{]], str, [[}{backend}\mplib_@tempa]],
-    },ccexplat)
-    local name, value = get_macro'mplib_@tempa':match'{(.-)}{(.-)}'
-    local t, obj = res:explode()
-    if pdfmode then
-      obj = format("%s 0 R", ltx.pdf.object_id( t[1]:sub(2,-1) ))
-    else
-      obj = t[2]
+  if res:find" cs " or res:find"@pdf.obj" then -- spot color shade
+    local name, value, obj
+    if not is_xcolor(str) then
+      run_tex_code({ "\\color_export:nnN{", str, "}{backend}\\mplib@tempa" }, ccexplat)
+      name, value = get_macro'mplib@tempa':match'{(.-)}{(.-)}'
+      local t = res:explode()
+      local refname = t[1]:sub(2,-1)
+      if pdfmode then
+        obj = format("%s 0 R", ltx.pdf.object_id(refname))
+      elseif t[2] == "cs" then -- raw export
+        run_tex_code({ "\\mplibtmptoks\\expanded{{\\pdf_object_ref:n{", refname, "}}}" }, ccexplat)
+        obj = texgettoks"mplibtmptoks"
+      else -- legacy: to be removed
+        obj = t[2]
+      end
+    else -- colorspace: mixing is allowed only in preamble
+      name, value = res:match"^(.-) cs (.-) sc"
+      name, obj = get_spc_name_obj(name)
     end
     return format('(1) withprescript"mplib_spotcolor=%s:%s:%s"', value,obj,name)
   end
-  return colorsplit(res)
+  return format('(%s) withprescript"mplib_texcolor=%s"', tableconcat(colorsplit(res),","), str)
 end
 
 do
@@ -691,7 +732,7 @@ do
       return format("[%s]", tableconcat(col," "))
     end
     col = process_color(col):match'"mpliboverridecolor=(.+)"'
-    if pdfmode then
+    if pdfmode or col:find" cs " then
       local t = col:explode()
       local b = filldraw == "fill" and 1 or #t/2+1
       local e = b == 1 and #t/2 or #t
@@ -706,7 +747,7 @@ do
   function luamplib.fillandstrokecolor (fill, stroke)
     fill   = graphictextcolor(fill, "fill")
     stroke = graphictextcolor(stroke, "stroke")
-    local bc = pdfmode and "" or "pdf:bc "
+    local bc = (pdfmode or fill:find" cs ") and "" or "pdf:bc "
     return format('withprescript "mpliboverridecolor=%s%s %s"', bc, fill, stroke)
   end
 end
@@ -1732,12 +1773,10 @@ def withlatticeverticesdata (text t) =
   endfor
 enddef;
 def withtrianglepatchinit (expr p, a, b, c) =
-  if string p: withprescript "sh_triangle_string=" & p fi
-  hide(mplib_shade_step := 0;)
   if string p:
-    withtrianglepatchnext(0, (0,0), a)
-    withtrianglepatchnext(0, (0,0), b)
-    withtrianglepatchnext(0, (0,0), c)
+    withtrianglepatchnext(0, p , a)
+    withtrianglepatchnext(0, "", b)
+    withtrianglepatchnext(0, "", c)
   else:
     withtrianglepatchnext(0, point 0 of p, a)
     withtrianglepatchnext(0, point 1 of p, b)
@@ -1753,51 +1792,53 @@ def withtrianglepatchnext (expr f, p, a) =
   )
 enddef;
 def withcoonspatchinit (expr p, a, b, c, d) =
-  withprescript "sh_coons_path=" &
-    if string p: p
-    else:
-      ddecimal point       0 of p & " " &
-      ddecimal postcontrol 0 of p & " " &
-      ddecimal precontrol  1 of p & " " &
-      ddecimal point       1 of p & " " &
-      ddecimal postcontrol 1 of p & " " &
-      ddecimal precontrol  2 of p & " " &
-      ddecimal point       2 of p & " " &
-      ddecimal postcontrol 2 of p & " " &
-      ddecimal precontrol  3 of p & " " &
-      ddecimal point       3 of p & " " &
-      ddecimal postcontrol 3 of p & " " &
-      ddecimal precontrol  0 of p
-    fi
-  hide(mplib_shade_step := 0;)
-  withshadingstep ( withshadingcolors (a, b) )
-  withshadingstep ( withshadingcolors (b, c) )
+  withshadingstep(
+    withprescript "sh_coons_edge_" & decimal mplib_shade_step & "=0"
+    withprescript "sh_coons_path_" & decimal mplib_shade_step & "=" &
+      if string p: p
+      else:
+        ddecimal point       0 of p & " " &
+        ddecimal postcontrol 0 of p & " " &
+        ddecimal precontrol  1 of p & " " &
+        ddecimal point       1 of p & " " &
+        ddecimal postcontrol 1 of p & " " &
+        ddecimal precontrol  2 of p & " " &
+        ddecimal point       2 of p & " " &
+        ddecimal postcontrol 2 of p & " " &
+        ddecimal precontrol  3 of p & " " &
+        ddecimal point       3 of p & " " &
+        ddecimal postcontrol 3 of p & " " &
+        ddecimal precontrol  0 of p
+      fi
+    withshadingcolors (a, b)
+  )
   withshadingstep ( withshadingcolors (c, d) )
 enddef;
 def withtensorpatchinit (expr p, q, a, b, c, d) =
-  withprescript "sh_coons_path=" &
-    if string p: p & " " & q
-    else:
-      ddecimal point       0 of p & " " &
-      ddecimal postcontrol 0 of p & " " &
-      ddecimal precontrol  1 of p & " " &
-      ddecimal point       1 of p & " " &
-      ddecimal postcontrol 1 of p & " " &
-      ddecimal precontrol  2 of p & " " &
-      ddecimal point       2 of p & " " &
-      ddecimal postcontrol 2 of p & " " &
-      ddecimal precontrol  3 of p & " " &
-      ddecimal point       3 of p & " " &
-      ddecimal postcontrol 3 of p & " " &
-      ddecimal precontrol  0 of p & " " &
-      ddecimal point       0 of q & " " &
-      ddecimal point       1 of q & " " &
-      ddecimal point       2 of q & " " &
-      ddecimal point       3 of q
-    fi
-  hide(mplib_shade_step := 0;)
-  withshadingstep ( withshadingcolors (a, b) )
-  withshadingstep ( withshadingcolors (b, c) )
+  withshadingstep(
+    withprescript "sh_coons_edge_" & decimal mplib_shade_step & "=0"
+    withprescript "sh_coons_path_" & decimal mplib_shade_step & "=" &
+      if string p: p & " " & q
+      else:
+        ddecimal point       0 of p & " " &
+        ddecimal postcontrol 0 of p & " " &
+        ddecimal precontrol  1 of p & " " &
+        ddecimal point       1 of p & " " &
+        ddecimal postcontrol 1 of p & " " &
+        ddecimal precontrol  2 of p & " " &
+        ddecimal point       2 of p & " " &
+        ddecimal postcontrol 2 of p & " " &
+        ddecimal precontrol  3 of p & " " &
+        ddecimal point       3 of p & " " &
+        ddecimal postcontrol 3 of p & " " &
+        ddecimal precontrol  0 of p & " " &
+        ddecimal point       0 of q & " " &
+        ddecimal point       1 of q & " " &
+        ddecimal point       2 of q & " " &
+        ddecimal point       3 of q
+      fi
+    withshadingcolors (a, b)
+  )
   withshadingstep ( withshadingcolors (c, d) )
 enddef;
 def withcoonspatchnext (expr f, p, a, b) =
@@ -2103,7 +2144,7 @@ do
     if object.postscript == "collect" then return end
     local override = prescript and prescript.mpliboverridecolor
     if override then
-      if pdfmode then
+      if pdfmode or override:find" cs " then
         pdf_literalcode(override)
         override = nil
       else
@@ -2153,7 +2194,7 @@ if pdfmode then
     return on,true
   end
 else
-  function update_pdfobjs (os, stream)
+  function update_pdfobjs (os, stream, hex)
     local key = os
     if stream then key = key..stream end
     local on = key and pdfobjs[key]
@@ -2162,7 +2203,11 @@ else
     end
     on = pdfetcs.cnt or 1
     if stream then
-      texsprint(format("\\special{pdf:stream @mplibpdfobj%s (%s) <<%s>>}",on,stream,os))
+      if hex then
+        texsprint(format("\\special{pdf:stream @mplibpdfobj%s <%s> <<%s>>}",on,stream,os))
+      else
+        texsprint(format("\\special{pdf:stream @mplibpdfobj%s (%s) <<%s>>}",on,stream,os))
+      end
     elseif os then
       texsprint(format("\\special{pdf:obj @mplibpdfobj%s %s}",on,os))
     else
@@ -2373,9 +2418,9 @@ do
       [[\color_model_new:nnn]],
       format("{mplibcolorspace_%s}", names:gsub(",","_")),
       format("{DeviceN}{names={%s}}", names),
-      [[\edef\mplib_@tempa{\pdf_object_ref_last:}]],
+      [[\mplibtmptoks\expanded{{\pdf_object_ref_last:}}]],
     }, ccexplat)
-    local colorspace = get_macro'mplib_@tempa'
+    local colorspace = texgettoks"mplibtmptoks"
     t[names] = colorspace
     return colorspace
   end })
@@ -2386,8 +2431,15 @@ do
       else -- #ca = 3
         cb[1], cb[2], cb[3] = cb[1], cb[1], cb[1]
       end
-    elseif #cb == 3 then -- #ca == 4
-      cb[1], cb[2], cb[3], cb[4] = 1-cb[1], 1-cb[2], 1-cb[3], 0
+    elseif #cb == 3 then -- #ca == 4 : rgb to cmyk
+      local c, m, y =  1-cb[1], 1-cb[2], 1-cb[3]
+      local k = math.min(c, m, y)
+      if k == 1 then
+        c, m, y = 0, 0, 0
+      else
+        c, m, y = (c-k)/(1-k), (m-k)/(1-k), (y-k)/(1-k)
+      end
+      cb[1], cb[2], cb[3], cb[4] = c, m, y, k
     end
   end
   local function write_mesh_objs (shtype, colorspace, stream, devicen, perrow)
@@ -2405,85 +2457,74 @@ do
       on, new = update_pdfobjs(dict, stream)
     else
       stream = format(("%02X"):rep(stream:len()), stream:byte(1,stream:len()))
-      on, new = update_pdfobjs(format(
-        "<<%s/Filter[/ASCIIHexDecode]/Length %d>>\nstream\n%s\nendstream",
-        dict, stream:len(), stream))
+      on, new = update_pdfobjs(dict, stream, true) -- hex is true
     end
     add_shading_resources(on, new)
     return on
   end
-  local function colors_ff (colortab, coons)
-    local colors, devicen = { }
-    for i,v in ipairs(colortab) do
-      colors[i] = { }
-      for ii,vv in ipairs(v) do
-        if type(vv) == "string" and vv:find"%s" then
-          local t = vv:explode()
-          for iii,vvv in ipairs(t) do
-            colors[i][iii] = math.floor(vvv * 0xFF)
-          end
-          devicen = #t
-        else
-          colors[i][ii] = math.floor(vv * 0xFF)
-        end
-      end
-    end
-    if not coons then return colors, devicen end
-    local t = { }
-    for _,v in ipairs(colors) do
+  local function colors_ff (colors)
+    local t, devicen = { }
+    for i,v in ipairs(colors) do
+      t[i] = { }
       for _,vv in ipairs(v) do
-        t[#t+1] = vv
+        local tt = tableconcat(vv," "):explode()
+        for _,vvv in ipairs(tt) do
+          tableinsert(t[i], string.char(math.floor(vvv * 0xFF)))
+        end
+        devicen = #tt
       end
     end
     return t, devicen
   end
-  local function vertex_ffff (Xt, Yt)
+  local function coords_ffff (coords)
+    local Xt, Yt = { }, { }
+    for i,v in ipairs(coords) do
+      for ii,vv in ipairs(v) do
+        local t = ii % 2 == 1 and Xt or Yt
+        t[#t+1] = tonumber(vv)
+      end
+    end
     local xmin, xmax = math.min(tableunpack(Xt)), math.max(tableunpack(Xt))
     local ymin, ymax = math.min(tableunpack(Yt)), math.max(tableunpack(Yt))
     local wd, ht = xmax - xmin, ymax - ymin
-    for i = 1, #Xt do
-      Xt[i] = math.floor((Xt[i] - xmin)/wd * 0xFFFF )
+    for i,v in ipairs(coords) do
+      for ii,vv in ipairs(v) do
+        local min = ii % 2 == 1 and xmin or ymin
+        local dim = ii % 2 == 1 and wd or ht
+        coords[i][ii] = string.pack(">H", math.floor((vv - min)/dim * 0xFFFF ))
+      end
     end
-    for i = 1, #Yt do
-      Yt[i] = math.floor((Yt[i] - ymin)/ht * 0xFFFF )
-    end
-    return Xt, Yt, xmin, ymin, wd, ht
+    return coords, xmin, ymin, wd, ht
   end
   local function do_shading_lattice_mesh (object, prescript, colorspace, ca, cb)
     local perrow = prescript.sh_lattice_perrow or 2
-    local data   = prescript.sh_lattice_data
-    data = data and data:explode() or { }
-    if #data < 8 then
-      data = { }
+    local steps = tonumber(prescript.sh_step) or 0
+    local coords, colors = { }, { }
+    if steps < 4 then
       local path = object.path
       for _,i in ipairs{1,2,4,3} do
-        data[#data+1] = path[i].x_coord
-        data[#data+1] = path[i].y_coord
+        coords[#coords+1] = { path[i].x_coord, path[i].y_coord }
+      end
+      colors = { {{1,0,0}}, {{0,1,0}}, {{0,0,1}}, {{1,1,0}} }
+      colorspace = "/DeviceRGB"
+    else
+      local t = prescript.sh_lattice_data:explode()
+      for i = 1, #t, 2 do
+        coords[#coords+1] = { t[i], t[i+1] }
+      end
+      for i = 1, steps do
+        colors[#colors+1] = { ca[i] }
       end
     end
-    if #data / 2 % perrow ~= 0 then err"vertices_per_row mismatches lattice_data" end
-    local Xt, Yt = { }, { }
-    for i = 1, #data, 2 do
-      Xt[#Xt+1] = tonumber(data[i])
-      Yt[#Yt+1] = tonumber(data[i+1])
-    end
-    local xmin, ymin, wd, ht
-    Xt, Yt, xmin, ymin, wd, ht = vertex_ffff(Xt, Yt)
+    if #coords % perrow ~= 0 then err"vertices_per_row mismatches lattice_coords" end
 
-    local colors, devicen = { }
-    if #ca > 3 then
-      colors, devicen = colors_ff(ca)
-    elseif colorspace == "/DeviceRGB" then
-      colors = {{255,0,0},{0,255,0},{0,0,255},{255,255,0}}
-    end
-
-    local stream = { }
-    for i = 1, #Xt do
-      stream[#stream+1] = string.pack( ">HH", Xt[i], Yt[i])
+    local stream, xmin, ymin, wd, ht, devicen = { }
+    coords, xmin, ymin, wd, ht = coords_ffff(coords)
+    colors, devicen = colors_ff(colors)
+    for i = 1, #coords do
+      stream[#stream+1] = tableconcat(coords[i])
       if not colors[i] then err"colorspace mismatch?" end
-      for _,vv in ipairs(colors[i]) do
-        stream[#stream+1] = string.char(tonumber(vv))
-      end
+      stream[#stream+1] = tableconcat(colors[i])
     end
 
     local matrix = format("%f 0 0 %f %f %f", wd, ht, xmin, ymin) :gsub(decimals,rmzeros)
@@ -2491,48 +2532,39 @@ do
     return on, matrix
   end
   local function do_shading_triangle_mesh (object, prescript, colorspace, ca, cb)
-    local str = prescript.sh_triangle_string
-    if str then
-      str = str:explode()
-      prescript.sh_triangle_vertex_1 = format("%s %s", str[1], str[2])
-      prescript.sh_triangle_vertex_2 = format("%s %s", str[3], str[4])
-      prescript.sh_triangle_vertex_3 = format("%s %s", str[5], str[6])
-    end
-
-    local Xt, Yt = { }, { }
     local steps = tonumber(prescript.sh_step) or 0
-    if steps > 2 then
-      for i = 1, steps do
-        local v = prescript["sh_triangle_vertex_" .. i]:explode()
-        Xt[#Xt+1] = tonumber(v[1])
-        Yt[#Yt+1] = tonumber(v[2])
-      end
-    else
+    local coords, colors, edges = { }, { }, { }
+    if steps < 3 then
       local path = object.path
       for i = 1, 3 do
-        Xt[#Xt+1] = path[i].x_coord
-        Yt[#Yt+1] = path[i].y_coord
+        coords[#coords+1] = { path[i].x_coord, path[i].y_coord }
+      end
+      colors = { {{1,0,0}}, {{0,1,0}}, {{0,0,1}} }
+      edges = { 0, 0, 0 }
+      colorspace = "/DeviceRGB"
+    else
+      for i = 1, steps do
+        local t = prescript["sh_triangle_vertex_" .. i]:explode()
+        if #t == 2 then
+          coords[#coords+1] = { t[1], t[2] }
+        elseif #t == 6 then
+          coords[#coords+1] = { t[1], t[2] }
+          coords[#coords+1] = { t[3], t[4] }
+          coords[#coords+1] = { t[5], t[6] }
+        end
+        colors[#colors+1] = { ca[i] }
+        edges[#edges+1] = tonumber(prescript["sh_triangle_edge_" .. i])
       end
     end
-    local xmin, ymin, wd, ht
-    Xt, Yt, xmin, ymin, wd, ht = vertex_ffff(Xt, Yt)
 
-    local colors, devicen = { }
-    if #ca > 2 then
-      colors, devicen = colors_ff(ca)
-    elseif colorspace == "/DeviceRGB" then
-      colors = { {255, 0, 0}, {0, 255, 0}, {0, 0, 255} }
-    end
-
-    local stream = { }
-    for i = 1, #Xt do
-      local flag = tonumber(prescript["sh_triangle_edge_" .. i]) or 0
-      stream[#stream+1] = string.char(flag)
-      stream[#stream+1] = string.pack( ">HH", Xt[i], Yt[i])
+    local stream, xmin, ymin, wd, ht, devicen = { }
+    coords, xmin, ymin, wd, ht = coords_ffff(coords)
+    colors, devicen = colors_ff(colors)
+    for i = 1, #coords do
+      stream[#stream+1] = string.char(edges[i])
+      stream[#stream+1] = tableconcat(coords[i])
       if not colors[i] then err"colorspace mismatch?" end
-      for _,vv in ipairs(colors[i]) do
-        stream[#stream+1] = string.char(tonumber(vv))
-      end
+      stream[#stream+1] = tableconcat(colors[i])
     end
 
     local matrix = format("%f 0 0 %f %f %f", wd, ht, xmin, ymin) :gsub(decimals,rmzeros)
@@ -2541,79 +2573,51 @@ do
   end
   local function do_shading_coons_patch (object, prescript, colorspace, ca, cb)
     local tensor = prescript.sh_type == "tensor"
-    local X_t, Y_t = { }, { }
-    local path = prescript.sh_coons_path
-    if path then
-      for i,v in ipairs( path:explode() ) do
-        local t = i % 2 == 1 and X_t or Y_t
-        t[#t+1] = tonumber(v)
-      end
-    else
-      path = object.path
+    local steps = tonumber(prescript.sh_step) or 0
+    local coords, colors, edges = { }, { }, { }
+    if steps < 4 then
+      local path, t = object.path, { }
       for i = 1, 4 do
-        X_t[#X_t+1] = path[i].x_coord
-        Y_t[#Y_t+1] = path[i].y_coord
-        X_t[#X_t+1] = path[i].right_x
-        Y_t[#Y_t+1] = path[i].right_y
-        local j = i == #path and 1 or i+1
-        X_t[#X_t+1] = path[j].left_x
-        Y_t[#Y_t+1] = path[j].left_y
+        t[#t+1] = path[i].x_coord
+        t[#t+1] = path[i].y_coord
+        t[#t+1] = path[i].right_x
+        t[#t+1] = path[i].right_y
+        local j = i == 4 and 1 or i+1
+        t[#t+1] = path[j].left_x
+        t[#t+1] = path[j].left_y
       end
       if tensor then
-        for i,v in ipairs( prescript.sh_tensor_path:explode() ) do
-          local t = i % 2 == 1 and X_t or Y_t
-          t[#t+1] = tonumber(v)
+        for _,v in ipairs( prescript.sh_tensor_path:explode() ) do
+          t[#t+1] = v
+        end
+      end
+      coords = { t }
+      colors = {{ {1,0,0}, {0,1,0}, {0,0,1}, {1,1,0} }}
+      edges  = { 0 }
+      colorspace = "/DeviceRGB"
+    else
+      for i = 1, steps do
+        local edge = tonumber(prescript["sh_coons_edge_"..i])
+        if edge then
+          edges[#edges+1] = edge
+          coords[#coords+1] = prescript["sh_coons_path_"..i]:explode()
+          if edge == 0 then
+            colors[#colors+1] = { ca[i], cb[i], ca[i+1], cb[i+1] }
+          else
+            colors[#colors+1] = { ca[i], cb[i] }
+          end
         end
       end
     end
 
-    local steps = tonumber(prescript.sh_step) or 0
-    for i = 4, steps do
-      local path = prescript["sh_coons_path_"..i]
-      for i,v in ipairs( path:explode() ) do
-        local t = i % 2 == 1 and X_t or Y_t
-        t[#t+1] = tonumber(v)
-      end
-    end
-
-    local xmin, ymin, wd, ht
-    X_t, Y_t, xmin, ymin, wd, ht = vertex_ffff(X_t, Y_t)
-
-    local n = tensor and 16 or 12
-    local coords = { }
-    for i = 1, n do
-      coords[#coords+1] = X_t[i]
-      coords[#coords+1] = Y_t[i]
-    end
-    coords = string.pack( ">"..("H"):rep(2*n), tableunpack(coords))
-
-    local colors, devicen
-    if ca[3] and cb[3] then
-      colors, devicen = colors_ff({ca[1], ca[2], ca[3], cb[3]}, true)
-    elseif colorspace == "/DeviceRGB" then
-      colors = { 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0 }
-    end
-    if not colors then err"colorspace mismatch?" end
-    colors = string.char(tableunpack(colors))
-
-    local stream = { string.char(0) .. coords .. colors }
-
-    local nn = tensor and 12 or 8
-    for i = 4, steps do
-      local coords = { }
-      for j = n+(i-4)*nn+1, n+(i-3)*nn do
-        coords[#coords+1] = X_t[j]
-        coords[#coords+1] = Y_t[j]
-      end
-      coords = string.pack( ">"..("H"):rep(2*nn), tableunpack(coords))
-
-      if not ca[i] or not cb[i] then err"colorspace mismatch?" end
-      local colors = colors_ff({ca[i], cb[i]}, true)
-      colors = string.char(tableunpack(colors))
-
-      local flag = tonumber(prescript["sh_coons_edge_"..i])
-
-      stream[#stream+1] = string.char(flag)..coords..colors
+    local stream, xmin, ymin, wd, ht, devicen = { }
+    coords, xmin, ymin, wd, ht = coords_ffff(coords)
+    colors, devicen = colors_ff(colors)
+    for i = 1, #coords do
+      stream[#stream+1] = string.char(edges[i])
+      stream[#stream+1] = tableconcat(coords[i])
+      if not colors[i] then err"colorspace mismatch?" end
+      stream[#stream+1] = tableconcat(colors[i])
     end
 
     local matrix = format("%f 0 0 %f %f %f", wd, ht, xmin, ymin) :gsub(decimals,rmzeros)
@@ -2671,15 +2675,21 @@ do
       local names, pos, objref = { }, -1, ""
       local script = object.prescript:explode"\13+"
       for i=#script,1,-1 do
+        local name, value
         if script[i]:find"mplib_spotcolor" then
-          local t, name, value = script[i]:explode"="[2]:explode":"
+          local t = script[i]:explode"="[2]:explode":"
           value, objref, name = t[1], t[2], t[3]
+        elseif script[i]:find"mplib_texcolor" then
+          local t = script[i]:explode"="[2]:explode"!"
+          name, value = t[1], (t[2] or 100)/100
+        end
+        if name and value then
           if not names[name] then
             pos = pos+1
             names[name] = pos
             names[#names+1] = name
           end
-          t = { }
+          local t = { }
           for j=1,names[name] do t[#t+1] = 0 end
           t[#t+1] = value
           tableinsert(#ca == #cb and ca or cb, t)
@@ -3042,13 +3052,20 @@ do
       if not color then return end
       local cs
       if color:find" cs " or color:find"@pdf.obj" then
-        local t = color:explode()
         if pdfmode then
-          cs = format("%s 0 R", ltx.pdf.object_id( t[1]:sub(2,-1) ))
-          color = t[3]
-        else
-          cs = t[2]
-          color = t[3]:match"%[(.+)%]"
+          local name
+          name, color = color:match"^(.-) cs (.-) sc"
+          cs = format("%s 0 R", ltx.pdf.object_id( name:sub(2,-1) ))
+          if cs == "0 0 R" then -- assumes colorspace.sty
+            _, cs = get_spc_name_obj(name)
+          end
+        elseif color:find" cs " then
+          local name
+          name, color = color:match"^/(.-) cs (.-) sc"
+          run_tex_code({ "\\mplibtmptoks\\expanded{{\\pdf_object_ref:n{", name, "}}}" }, ccexplat)
+          cs = texgettoks"mplibtmptoks"
+        else -- legacy: to be removed
+          cs, color = color:match"pdf:bc (.-) %[(.-)%]"
         end
       else
         local t = colorsplit(color)
