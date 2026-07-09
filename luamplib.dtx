@@ -85,7 +85,7 @@ See source file '\inFileName' for licencing and contact information.
 %<*driver>
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesFile{luamplib.drv}%
-  [2026/06/19 v2.42.2 Interface for using the mplib library]%
+  [2026/07/09 v2.42.3 Interface for using the mplib library]%
 \documentclass[11pt,a4paper]{ltxdoc}
 \usepackage{geometry,graphicx,xspace}
 \usepackage[x11names]{xcolor}
@@ -174,7 +174,7 @@ See source file '\inFileName' for licencing and contact information.
 % \author{Hans Hagen, Taco Hoekwater, Elie Roux, Philipp Gesang and Kim Dohyun\\
 % Current Maintainer: Kim Dohyun\\
 % Support: \url{https://github.com/lualatex/luamplib}}
-% \date{2026/06/19 v2.42.2}
+% \date{2026/07/09 v2.42.3}
 %
 % \maketitle
 %
@@ -1959,8 +1959,8 @@ See source file '\inFileName' for licencing and contact information.
 %\stopmpfig{7}
 %\begin{verbatim}
 %   \mpfig
-%     u:=70;
-%     p:=unitsquare scaled u;
+%     u := 70 ;
+%     p := unitsquare scaled u ;
 %     fill p scaled 2
 %       withshadingmethod  "coons"
 %       withcoonspatchinit
@@ -2009,33 +2009,33 @@ See source file '\inFileName' for licencing and contact information.
 %   The syntax is the same as the second argument of |withtensorpatchinit| described just above.
 % \end{description}
 %
-% An example to show the effect of tensor-product patch mesh shading:\footnote{\relax
-%   Be aware that currently Mac OS Preview does not render properly the figure below. }
+% An example to show the effect of tensor-product patch mesh shading:
 %\startmpfig
 %\mpfig u := 80 ; path p, q; p = unitsquare scaled u ; q = p scaled 1/10 shifted (dir 45 * 1.2u) ; fill p scaled 2 shifted (-u,-u) withshadingmethod "tensor" withtensorpatchinit ( p, q, red, green, blue, yellow) withtensorpatchinit ( p rotated 90, q rotated 90, red, yellow, blue, green) withtensorpatchinit ( p rotated 180, q rotated 180, red, green, blue, yellow) withtensorpatchinit ( p rotated 270, q rotated 270, red, yellow, blue, green) ; \endmpfig
 %\stopmpfig{10}
 %\begin{verbatim}
 %   \mpfig
 %     u := 80 ;
-%     path p, q;
+%     path p, q ;
 %     p = unitsquare scaled u ;
 %     q = p scaled 1/10 shifted (dir 45 * 1.2u) ;
 %     fill p scaled 2 shifted (-u,-u)
 %       withshadingmethod "tensor"
-%       withtensorpatchinit (
-%         p, q,
-%         red, green, blue, yellow)
-%       withtensorpatchinit (
-%         p rotated 90, q rotated 90,
-%         red, yellow, blue, green)
-%       withtensorpatchinit (
-%         p rotated 180, q rotated 180,
-%         red, green, blue, yellow)
-%       withtensorpatchinit (
-%         p rotated 270, q rotated 270,
-%         red, yellow, blue, green) ;
+%       withtensorpatchinit
+%         (p, q, red, green, blue, yellow)
+%       withtensorpatchinit
+%         (p rotated 90, q rotated 90,
+%          red, yellow, blue, green)
+%       withtensorpatchinit
+%         (p rotated 180, q rotated 180,
+%          red, green, blue, yellow)
+%       withtensorpatchinit
+%         (p rotated 270, q rotated 270,
+%          red, yellow, blue, green) ;
 %   \endmpfig
 %\end{verbatim}
+% \notabene Be aware that currently Mac OS Preview or Foxit Editor
+% does not render properly the figure above.
 %
 %
 % \subsection{Lua}
@@ -2182,8 +2182,8 @@ See source file '\inFileName' for licencing and contact information.
 
 luatexbase.provides_module {
   name          = "luamplib",
-  version       = "2.42.2",
-  date          = "2026/06/19",
+  version       = "2.42.3",
+  date          = "2026/07/09",
   description   = "Lua package to typeset Metapost with LuaTeX's MPLib.",
 }
 
@@ -2981,7 +2981,7 @@ local function get_spc_name_obj (spot)
       end
     end
   else
-    err"only l3color and colorspace is supported for spot color"
+    err"only l3color or colorspace is supported for spot color"
   end
 end
 do
@@ -3139,7 +3139,7 @@ do
       return format("[%s]", tableconcat(col," "))
     end
     col = process_color(col):match'"mpliboverridecolor=(.+)"'
-    if pdfmode then
+    if pdfmode or col:find" cs " then
       local t = col:explode()
       local b = filldraw == "fill" and 1 or #t/2+1
       local e = b == 1 and #t/2 or #t
@@ -3154,7 +3154,7 @@ do
   function luamplib.fillandstrokecolor (fill, stroke)
     fill   = graphictextcolor(fill, "fill")
     stroke = graphictextcolor(stroke, "stroke")
-    local bc = pdfmode and "" or "pdf:bc "
+    local bc = (pdfmode or fill:find" cs ") and "" or "pdf:bc "
     return format('withprescript "mpliboverridecolor=%s%s %s"', bc, fill, stroke)
   end
 end
@@ -5007,6 +5007,7 @@ do
         coords[#coords+1] = { path[i].x_coord, path[i].y_coord }
       end
       colors = { {{1,0,0}}, {{0,1,0}}, {{0,0,1}}, {{1,1,0}} }
+      colorspace = "/DeviceRGB"
     else
       local t = prescript.sh_lattice_data:explode()
       for i = 1, #t, 2 do
@@ -5041,6 +5042,7 @@ do
       end
       colors = { {{1,0,0}}, {{0,1,0}}, {{0,0,1}} }
       edges = { 0, 0, 0 }
+      colorspace = "/DeviceRGB"
     else
       for i = 1, steps do
         local t = prescript["sh_triangle_vertex_" .. i]:explode()
@@ -5093,6 +5095,7 @@ do
       coords = { t }
       colors = {{ {1,0,0}, {0,1,0}, {0,0,1}, {1,1,0} }}
       edges  = { 0 }
+      colorspace = "/DeviceRGB"
     else
       for i = 1, steps do
         local edge = tonumber(prescript["sh_coons_edge_"..i])
@@ -6323,7 +6326,7 @@ end
 %    \begin{macrocode}
   \NeedsTeXFormat{LaTeX2e}
   \ProvidesPackage{luamplib}
-    [2026/06/19 v2.42.2 mplib package for LuaTeX]
+    [2026/07/09 v2.42.3 mplib package for LuaTeX]
 \fi
 \ifdefined\newluafunction\else
   \input ltluatex

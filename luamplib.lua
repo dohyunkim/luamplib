@@ -11,8 +11,8 @@
 
 luatexbase.provides_module {
   name          = "luamplib",
-  version       = "2.42.2",
-  date          = "2026/06/19",
+  version       = "2.42.3",
+  date          = "2026/07/09",
   description   = "Lua package to typeset Metapost with LuaTeX's MPLib.",
 }
 
@@ -650,7 +650,7 @@ local function get_spc_name_obj (spot)
       end
     end
   else
-    err"only l3color and colorspace is supported for spot color"
+    err"only l3color or colorspace is supported for spot color"
   end
 end
 do
@@ -732,7 +732,7 @@ do
       return format("[%s]", tableconcat(col," "))
     end
     col = process_color(col):match'"mpliboverridecolor=(.+)"'
-    if pdfmode then
+    if pdfmode or col:find" cs " then
       local t = col:explode()
       local b = filldraw == "fill" and 1 or #t/2+1
       local e = b == 1 and #t/2 or #t
@@ -747,7 +747,7 @@ do
   function luamplib.fillandstrokecolor (fill, stroke)
     fill   = graphictextcolor(fill, "fill")
     stroke = graphictextcolor(stroke, "stroke")
-    local bc = pdfmode and "" or "pdf:bc "
+    local bc = (pdfmode or fill:find" cs ") and "" or "pdf:bc "
     return format('withprescript "mpliboverridecolor=%s%s %s"', bc, fill, stroke)
   end
 end
@@ -2506,6 +2506,7 @@ do
         coords[#coords+1] = { path[i].x_coord, path[i].y_coord }
       end
       colors = { {{1,0,0}}, {{0,1,0}}, {{0,0,1}}, {{1,1,0}} }
+      colorspace = "/DeviceRGB"
     else
       local t = prescript.sh_lattice_data:explode()
       for i = 1, #t, 2 do
@@ -2540,6 +2541,7 @@ do
       end
       colors = { {{1,0,0}}, {{0,1,0}}, {{0,0,1}} }
       edges = { 0, 0, 0 }
+      colorspace = "/DeviceRGB"
     else
       for i = 1, steps do
         local t = prescript["sh_triangle_vertex_" .. i]:explode()
@@ -2592,6 +2594,7 @@ do
       coords = { t }
       colors = {{ {1,0,0}, {0,1,0}, {0,0,1}, {1,1,0} }}
       edges  = { 0 }
+      colorspace = "/DeviceRGB"
     else
       for i = 1, steps do
         local edge = tonumber(prescript["sh_coons_edge_"..i])
