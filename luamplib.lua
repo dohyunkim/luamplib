@@ -11,8 +11,8 @@
 
 luatexbase.provides_module {
   name          = "luamplib",
-  version       = "2.42.3",
-  date          = "2026/07/09",
+  version       = "2.42.4",
+  date          = "2026/07/10",
   description   = "Lua package to typeset Metapost with LuaTeX's MPLib.",
 }
 
@@ -2513,6 +2513,7 @@ do
         coords[#coords+1] = { t[i], t[i+1] }
       end
       for i = 1, steps do
+        if not ca[i] then err"colorspace mismatch?" end
         colors[#colors+1] = { ca[i] }
       end
     end
@@ -2523,7 +2524,6 @@ do
     colors, devicen = colors_ff(colors)
     for i = 1, #coords do
       stream[#stream+1] = tableconcat(coords[i])
-      if not colors[i] then err"colorspace mismatch?" end
       stream[#stream+1] = tableconcat(colors[i])
     end
 
@@ -2552,6 +2552,7 @@ do
           coords[#coords+1] = { t[3], t[4] }
           coords[#coords+1] = { t[5], t[6] }
         end
+        if not ca[i] then err"colorspace mismatch?" end
         colors[#colors+1] = { ca[i] }
         edges[#edges+1] = tonumber(prescript["sh_triangle_edge_" .. i])
       end
@@ -2563,7 +2564,6 @@ do
     for i = 1, #coords do
       stream[#stream+1] = string.char(edges[i])
       stream[#stream+1] = tableconcat(coords[i])
-      if not colors[i] then err"colorspace mismatch?" end
       stream[#stream+1] = tableconcat(colors[i])
     end
 
@@ -2575,7 +2575,7 @@ do
     local tensor = prescript.sh_type == "tensor"
     local steps = tonumber(prescript.sh_step) or 0
     local coords, colors, edges = { }, { }, { }
-    if steps < 4 then
+    if steps < 2 then
       local path, t = object.path, { }
       for i = 1, 4 do
         t[#t+1] = path[i].x_coord
@@ -2602,8 +2602,10 @@ do
           edges[#edges+1] = edge
           coords[#coords+1] = prescript["sh_coons_path_"..i]:explode()
           if edge == 0 then
+            if not (ca[i] and cb[i] and ca[i+1] and cb[i+1]) then err"colorspace mismatch?" end
             colors[#colors+1] = { ca[i], cb[i], ca[i+1], cb[i+1] }
           else
+            if not (ca[i] and cb[i]) then err"colorspace mismatch?" end
             colors[#colors+1] = { ca[i], cb[i] }
           end
         end
@@ -2616,7 +2618,6 @@ do
     for i = 1, #coords do
       stream[#stream+1] = string.char(edges[i])
       stream[#stream+1] = tableconcat(coords[i])
-      if not colors[i] then err"colorspace mismatch?" end
       stream[#stream+1] = tableconcat(colors[i])
     end
 

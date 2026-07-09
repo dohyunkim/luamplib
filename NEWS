@@ -1,5 +1,8 @@
                        History of the luamplib package
 
+2026/07/10 2.42.4
+   * fix a bug with shading steps in coons patch shading
+
 2026/07/09 2.42.3
    * using the following macros multiple times is allowed:
      withcoonspatchinit, withtensorpatchinit, withtrianglepatchinit.
