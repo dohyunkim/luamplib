@@ -5088,9 +5088,8 @@ do
         t[#t+1] = path[j].left_y
       end
       if tensor then
-        for _,v in ipairs( prescript.sh_tensor_path:explode() ) do
-          t[#t+1] = v
-        end
+        local tt = prescript.sh_tensor_path:explode()
+        t = table.move(tt, 1, #tt, #t+1, t)
       end
       coords = { t }
       colors = {{ {1,0,0}, {0,1,0}, {0,0,1}, {1,1,0} }}
