@@ -11,8 +11,8 @@
 
 luatexbase.provides_module {
   name          = "luamplib",
-  version       = "2.42.4",
-  date          = "2026/07/10",
+  version       = "2.42.5",
+  date          = "2026/08/07",
   description   = "Lua package to typeset Metapost with LuaTeX's MPLib.",
 }
 
@@ -436,7 +436,7 @@ local function is_xcolor (str)
   return false
 end
 local function colorsplit (res)
-  local t, tt = { }, res:gsub("[%[%]]","",2):explode()
+  local t, tt = { }, res:explode()
   local be = tt[1]:find"^%d" and 1 or 2
   for i=be, #tt do
     if not tonumber(tt[i]) then break end
@@ -448,14 +448,9 @@ do
   local colfmt = ccexplat and "l3color" or "xcolor"
   local mplibcolorfmt = {
     xcolor = [[{\setbox0\hbox{{\color%s\global\mplibtmptoks\expandafter{\current@color}}}}]],
-    l3color = is_defined"__color_select:nn" and tableconcat{ -- to be cleaned up
-      [[\begingroup\def\__color_select:N#1{\expandafter\__color_select:nn#1}]],
-      [[\def\__color_backend_select:nn#1#2{\global\mplibtmptoks{#1 #2}}]],
-      [[\def\__kernel_backend_literal:e#1{\global\mplibtmptoks\expandafter{\expanded{#1}}}]],
-      [[\color_select:n%s\endgroup]],
-    } or is_defined"__color_export_format_raw:nnN" and
+    l3color = is_defined"__color_export_format_raw:nnN" and
       [[\color_export:nnN%s{raw}\l_tmpa_tl\mplibtmptoks\expandafter{\l_tmpa_tl}]]
-    or [[{\setbox0\hbox{{\color_select:n%s\global\mplibtmptoks\expanded{{\current@color}}}}}]]
+      or [[{\setbox0\hbox{{\color_select:n%s\global\mplibtmptoks\expanded{{\current@color}}}}}]]
   }
   function process_color (str)
     if str then
@@ -471,12 +466,11 @@ do
       run_tex_code(myfmt:format(str), ccexplat or catat11)
       local t = texgettoks"mplibtmptoks"
       if not pdfmode then
-        if t:find" cs " then -- spot color raw export
-          local name = t:match("^/(.-) cs ")
-          texsprint(ccexplat, {
-            "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
-            name, "}{\\pdf_object_ref:n{", name, "}}"
-          })
+        ---[[ to be removed
+        if t:find"^ color%d" then
+          local tt = t:explode()
+          t = ("/%s cs %s scn /%s CS %s SCN"):format(tt[1], tt[2], tt[1], tt[2])
+        --]]
         elseif t:find"^hsb" then
           local spec = t:gsub("^hsb ",""):gsub(" ",",")
           run_tex_code{"\\convertcolorspec{hsb}{", spec, "}{rgb}\\mplibtmpa"}
@@ -484,6 +478,18 @@ do
         elseif not t:find"%d" then -- named color
           run_tex_code{"\\extractcolorspecs{", t, "}\\mplibtmpa\\mplibtmpb"}
           t = format("%s %s", get_macro"mplibtmpa", get_macro"mplibtmpb":gsub(","," "))
+        end
+        local name, value = t:match("^(%a+) (.+)")
+        if name and value then
+          local op = name == "rgb" and "rg" or name == "cmyk" and "k" or name == "gray" and "g"
+          if not op then err"unknown color model" end
+          t = ("%s %s %s %s"):format(value, op, value, op:upper())
+        elseif t:find" cs " then -- spot color raw export
+          name = t:match("^/(.-) cs ")
+          texsprint(ccexplat, {
+            "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
+            name, "}{\\pdf_object_ref:n{", name, "}}"
+          })
         end
       elseif is_defined"ver@colorspace.sty" and t:find"^/&" then
         local a,b,c,d = t:match"^(.- cs) (.- CS) (.- scn?) (.- SCN?)$"
@@ -497,7 +503,7 @@ do
   end
   function process_mplibcolor(str)
     local res = process_color(str)
-    if res:find" cs " or res:find"@pdf.obj" then return res end
+    if res:find" cs " then return res end
     res = colorsplit(res:match'"mpliboverridecolor=(.+)"')
     return format("(%s)", tableconcat(res, ","))
   end
@@ -663,7 +669,7 @@ do
   end
   luamplib.gettexcolor = function (str, rgb)
     local res = process_color(str):match'"mpliboverridecolor=(.+)"'
-    if res:find" cs " or res:find"@pdf.obj" then
+    if res:find" cs " then
       if not rgb then
         warn("%s is a spot color. Forced to CMYK", str)
       end
@@ -693,7 +699,7 @@ do
 end
 luamplib.shadecolor = function (str)
   local res = process_color(str):match'"mpliboverridecolor=(.+)"'
-  if res:find" cs " or res:find"@pdf.obj" then -- spot color shade
+  if res:find" cs " then -- spot color shade
     local name, value, obj
     if not is_xcolor(str) then
       run_tex_code({ "\\color_export:nnN{", str, "}{backend}\\mplib@tempa" }, ccexplat)
@@ -702,11 +708,9 @@ luamplib.shadecolor = function (str)
       local refname = t[1]:sub(2,-1)
       if pdfmode then
         obj = format("%s 0 R", ltx.pdf.object_id(refname))
-      elseif t[2] == "cs" then -- raw export
+      else
         run_tex_code({ "\\mplibtmptoks\\expanded{{\\pdf_object_ref:n{", refname, "}}}" }, ccexplat)
         obj = texgettoks"mplibtmptoks"
-      else -- legacy: to be removed
-        obj = t[2]
       end
     else -- colorspace: mixing is allowed only in preamble
       name, value = res:match"^(.-) cs (.-) sc"
@@ -724,31 +728,20 @@ do
       for i=1,#col do
         col[i] = format("%.3f", col[i])
       end
-      if pdfmode then
-        local op = #col == 4 and "k" or #col == 3 and "rg" or "g"
-        col[#col+1] = filldraw == "fill" and op or op:upper()
-        return tableconcat(col," ")
-      end
-      return format("[%s]", tableconcat(col," "))
+      local op = #col == 4 and "k" or #col == 3 and "rg" or "g"
+      col[#col+1] = filldraw == "fill" and op or op:upper()
+      return tableconcat(col," ")
     end
     col = process_color(col):match'"mpliboverridecolor=(.+)"'
-    if pdfmode or col:find" cs " then
-      local t = col:explode()
-      local b = filldraw == "fill" and 1 or #t/2+1
-      local e = b == 1 and #t/2 or #t
-      return tableconcat(t," ", b, e)
-    end
-    if col:find"@pdf.obj" then
-      return col:gsub("pdf:bc%s*","",1)
-    else
-      return format("[%s]", tableconcat(colorsplit(col)," "))
-    end
+    local t = col:explode()
+    local b = filldraw == "fill" and 1 or #t/2+1
+    local e = b == 1 and #t/2 or #t
+    return tableconcat(t," ", b, e)
   end
   function luamplib.fillandstrokecolor (fill, stroke)
     fill   = graphictextcolor(fill, "fill")
     stroke = graphictextcolor(stroke, "stroke")
-    local bc = (pdfmode or fill:find" cs ") and "" or "pdf:bc "
-    return format('withprescript "mpliboverridecolor=%s%s %s"', bc, fill, stroke)
+    return format('withprescript "mpliboverridecolor=%s %s"', fill, stroke)
   end
 end
 
@@ -2137,33 +2130,16 @@ local function put_tex_boxes (object,prescript)
   end
 end
 
-local do_preobj_CR
-do
-  local prev_override_color
-  function do_preobj_CR(object,prescript)
-    if object.postscript == "collect" then return end
-    local override = prescript and prescript.mpliboverridecolor
-    if override then
-      if pdfmode or override:find" cs " then
-        pdf_literalcode(override)
-        override = nil
-      else
-        put2output("\\special{%s}",override)
-        prev_override_color = override
-      end
-    else
-      local cs = object.color
-      if cs and #cs > 0 then
-        pdf_literalcode(luamplib.colorconverter(cs))
-        prev_override_color = nil
-      elseif not pdfmode then
-        override = prev_override_color
-        if override then
-          put2output("\\special{%s}",override)
-        end
-      end
+local function do_preobj_CR(object,prescript)
+  if object.postscript == "collect" then return end
+  local override = prescript and prescript.mpliboverridecolor
+  if override then
+    pdf_literalcode(override)
+  else
+    local cs = object.color
+    if cs and #cs > 0 then
+      pdf_literalcode(luamplib.colorconverter(cs))
     end
-    return override
   end
 end
 
@@ -2587,8 +2563,7 @@ do
         t[#t+1] = path[j].left_y
       end
       if tensor then
-        local tt = prescript.sh_tensor_path:explode()
-        t = table.move(tt, 1, #tt, #t+1, t)
+        t = table.move(prescript.sh_tensor_path:explode(), 1, 8, #t+1, t)
       end
       coords = { t }
       colors = {{ {1,0,0}, {0,1,0}, {0,0,1}, {1,1,0} }}
@@ -3051,21 +3026,17 @@ do
       end
       if not color then return end
       local cs
-      if color:find" cs " or color:find"@pdf.obj" then
+      if color:find" cs " then
+        local name
+        name, color = color:match"^/(.-) cs (.-) sc"
         if pdfmode then
-          local name
-          name, color = color:match"^(.-) cs (.-) sc"
-          cs = format("%s 0 R", ltx.pdf.object_id( name:sub(2,-1) ))
+          cs = format("%s 0 R", ltx.pdf.object_id( name ))
           if cs == "0 0 R" then -- assumes colorspace.sty
-            _, cs = get_spc_name_obj(name)
+            _, cs = get_spc_name_obj("/"..name)
           end
-        elseif color:find" cs " then
-          local name
-          name, color = color:match"^/(.-) cs (.-) sc"
+        else
           run_tex_code({ "\\mplibtmptoks\\expanded{{\\pdf_object_ref:n{", name, "}}}" }, ccexplat)
           cs = texgettoks"mplibtmptoks"
-        else -- legacy: to be removed
-          cs, color = color:match"pdf:bc (.-) %[(.-)%]"
         end
       else
         local t = colorsplit(color)
@@ -3339,19 +3310,12 @@ function luamplib.registergroup (boxid, name, opts)
 end
 
 do
-  local function stop_special_effects(fade,opaq,over)
+  local function stop_special_effects(fade,opaq)
     if fade then -- fading
       stop_pdf_code()
     end
     if opaq then -- opacity
       pdf_literalcode(opaq)
-    end
-    if over then -- color
-      if over:find"pdf:bc" then
-        put2output"\\special{pdf:ec}"
-      else
-        put2output"\\special{color pop}"
-      end
     end
   end
 
@@ -3487,11 +3451,11 @@ do
                 local objecttype    = object.type
                 local prescript     = object.prescript
                 prescript = prescript and script2table(prescript) -- prescript is now a table
-                local cr_over = do_preobj_CR(object,prescript) -- color
+                do_preobj_CR(object,prescript) -- color
                 local tr_opaq = do_preobj_TR(object,prescript) -- opacity
                 local fading_ = do_preobj_FADE(object,prescript) -- fading
-                local pattern_ = do_preobj_PAT(object,prescript) -- tiling pattern
-                local shading_ = do_preobj_shading(object,prescript) -- shading pattern
+                do_preobj_PAT(object,prescript) -- tiling pattern
+                do_preobj_shading(object,prescript) -- shading pattern
                 local trgroup = do_preobj_GRP(object,prescript) -- transparency group
                 if prescript and prescript.mplibtexboxid then
                   put_tex_boxes(object,prescript)
@@ -3662,17 +3626,17 @@ do
                   end
                 end
                 if fading_ == "start" then
-                  pdfetcs.fading.specialeffects = {fading_, tr_opaq, cr_over}
+                  pdfetcs.fading.specialeffects = {fading_, tr_opaq}
                 elseif trgroup == "start" then
-                  pdfetcs.tr_group.specialeffects = {fading_, tr_opaq, cr_over}
+                  pdfetcs.tr_group.specialeffects = {fading_, tr_opaq}
                 elseif fading_ == "stop" then
                   local se = pdfetcs.fading.specialeffects
-                  if se then stop_special_effects(se[1], se[2], se[3]) end
+                  if se then stop_special_effects(se[1], se[2]) end
                 elseif trgroup == "stop" then
                   local se = pdfetcs.tr_group.specialeffects
-                  if se then stop_special_effects(se[1], se[2], se[3]) end
+                  if se then stop_special_effects(se[1], se[2]) end
                 else
-                  stop_special_effects(fading_, tr_opaq, cr_over)
+                  stop_special_effects(fading_, tr_opaq)
                 end
                 if fading_ or trgroup then -- extgs resetted
                   miterlimit, linecap, linejoin, dashed = -1, -1, -1, false

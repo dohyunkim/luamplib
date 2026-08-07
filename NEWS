@@ -1,5 +1,8 @@
                        History of the luamplib package
 
+2026/08/07 2.42.5
+   * clean up color-related codes
+
 2026/07/10 2.42.4
    * fix a bug with shading steps in coons patch shading
 
