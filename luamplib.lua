@@ -11,8 +11,8 @@
 
 luatexbase.provides_module {
   name          = "luamplib",
-  version       = "2.42.6",
-  date          = "2026/08/11",
+  version       = "2.42.7",
+  date          = "2026/08/12",
   description   = "Lua package to typeset Metapost with LuaTeX's MPLib.",
 }
 
@@ -3020,6 +3020,36 @@ do
     end
     return on
   end
+  local function uncoloredGS(color,key,fill)
+    local cs
+    if color:find" cs " then
+      local name
+      if fill then
+        name, color = color:match"^/(.-) cs (.-) sc"
+      else
+        name, color = color:match" /(.-) CS (.-) SC"
+      end
+      if pdfmode then
+        cs = format("%s 0 R", ltx.pdf.object_id( name ))
+        if cs == "0 0 R" then -- assumes colorspace.sty
+          _, cs = get_spc_name_obj("/"..name)
+        end
+      else
+        run_tex_code({ "\\mplibtmptoks\\expanded{{\\pdf_object_ref:n{", name, "}}}" }, ccexplat)
+        cs = texgettoks"mplibtmptoks"
+      end
+    else
+      if fill or not color:find"%a" then
+        color = colorsplit(color)
+      else
+        color = color:match"%a+ (.-) %a+":explode()
+      end
+      cs = #color == 4 and "/DeviceCMYK" or #color == 3 and "/DeviceRGB" or "/DeviceGray"
+      color = tableconcat(color," ")
+    end
+    return fill and format("/MPlibCS%i cs %s /%s scn", pattern_colorspace(cs), color, key)
+                 or format("/MPlibCS%i CS %s /%s SCN", pattern_colorspace(cs), color, key)
+  end
   function do_preobj_PAT(object, prescript)
     local name = prescript and prescript.mplibpattern
     if not name then return end
@@ -3027,9 +3057,10 @@ do
     local patt = patterns[name]
     local index = patt and patt.id or err("cannot get pattern object '%s'", name)
     local key = format("MPlibPt%s",index)
-    local stroke, precs, postcs = prescript.mplibpatternstroke
+    local stroke, fillgs, strkgs = prescript.mplibpatternstroke
     if patt.colored then
-      precs, postcs = "/Pattern", format("/%s",key)
+      fillgs = format("/Pattern cs /%s scn", key)
+      strkgs = format("/Pattern CS /%s SCN", key)
     else
       local color = prescript.mpliboverridecolor
       if not color then
@@ -3037,32 +3068,15 @@ do
         color = t and #t>0 and luamplib.colorconverter(t)
       end
       if not color then return end
-      local cs
-      if color:find" cs " then
-        local name
-        name, color = color:match"^/(.-) cs (.-) sc"
-        if pdfmode then
-          cs = format("%s 0 R", ltx.pdf.object_id( name ))
-          if cs == "0 0 R" then -- assumes colorspace.sty
-            _, cs = get_spc_name_obj("/"..name)
-          end
-        else
-          run_tex_code({ "\\mplibtmptoks\\expanded{{\\pdf_object_ref:n{", name, "}}}" }, ccexplat)
-          cs = texgettoks"mplibtmptoks"
-        end
-      else
-        local t = colorsplit(color)
-        cs = #t == 4 and "/DeviceCMYK" or #t == 3 and "/DeviceRGB" or "/DeviceGray"
-        color = tableconcat(t," ")
-      end
-      precs, postcs = format("/MPlibCS%i",pattern_colorspace(cs)), format("%s /%s",color,key)
+      fillgs = uncoloredGS(color,key,true)
+      strkgs = uncoloredGS(color,key,false)
     end
     if stroke == "filldraw" or stroke == "both" then
-      pdf_literalcode("%s cs %s scn %s CS %s SCN",precs,postcs,precs,postcs)
+      pdf_literalcode("%s %s", fillgs, strkgs)
     elseif stroke == "draw" or stroke == "yes" then
-      pdf_literalcode("%s CS %s SCN",precs,postcs)
+      pdf_literalcode(strkgs)
     else
-      pdf_literalcode("%s cs %s scn",precs,postcs)
+      pdf_literalcode(fillgs)
     end
     if not patt.done then
       local val = pdfmode and format("%s 0 R",index) or patterns[index]
