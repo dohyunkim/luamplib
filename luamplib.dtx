@@ -85,7 +85,7 @@ See source file '\inFileName' for licencing and contact information.
 %<*driver>
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesFile{luamplib.drv}%
-  [2026/08/07 v2.42.5 Interface for using the mplib library]%
+  [2026/08/11 v2.42.6 Interface for using the mplib library]%
 \documentclass[11pt,a4paper]{ltxdoc}
 \usepackage{geometry,graphicx,xspace}
 \usepackage[x11names]{xcolor}
@@ -174,7 +174,7 @@ See source file '\inFileName' for licencing and contact information.
 % \author{Hans Hagen, Taco Hoekwater, Elie Roux, Philipp Gesang and Kim Dohyun\\
 % Current Maintainer: Kim Dohyun\\
 % Support: \url{https://github.com/lualatex/luamplib}}
-% \date{2026/08/07 v2.42.5}
+% \date{2026/08/11 v2.42.6}
 %
 % \maketitle
 %
@@ -1150,10 +1150,32 @@ See source file '\inFileName' for licencing and contact information.
 %     or six numerics separated by spaces, such as |"1.2 0 0 0.8 0 0"|
 %     (|xx|, |yx|, |xy|, |yy|, |x|, and |y|-part respectively).
 %   \item[withshadingstroke \meta{string}]
-%     where \meta{string} shall be |"yes"| or |"no"|.
-%     Only meaningful when the shading object is a \meta{path};
+%     When the shading object is a \meta{path},
+%     the string shall be |"yes"| or |"no"|:
 %     if |"yes"|, we get the path stroked and \emph{then} shaded.
-%     It is more efficient than issueing two sentences.
+%     It could be more efficient than issueing two sentences.
+%
+%     When the shading object is a \meta{picture},
+%     the string shall be |"filldraw"|, |"both"|, |"draw"|, |"yes"|, or |"no"|:
+%     |"filldraw"| or |"both"| will shade both the fill part and the stroke part;
+%     |"draw"| or |"yes"| will shade the stroke part only;
+%     all other cases will shade the fill part only, which is the default behavior.
+%     An example:
+%\startmpfig
+%\mpfig pickup pencircle scaled 10; draw image(draw fullcircle scaled 60 withoutcolor; draw unitsquare scaled 60 withoutcolor;) withshadingmethod "linear" withshadingcolors (blue,red) withshadingstroke "yes";\endmpfig
+%\stopmpfig{5}
+%\begin{verbatim}
+%    \mpfig
+%      pickup pencircle scaled 10;
+%      draw image(
+%        draw fullcircle scaled 60 withoutcolor;
+%        draw unitsquare scaled 60 withoutcolor;
+%      )
+%      withshadingmethod "linear"
+%      withshadingcolors (blue, red)
+%      withshadingstroke "yes" ;
+%    \endmpfig
+%\end{verbatim}
 % \end{description}
 %
 % \subsubsection{Fading}
@@ -1237,7 +1259,7 @@ See source file '\inFileName' for licencing and contact information.
 %\startmpfig
 %\mppattern{mypatt}[xstep=10, ystep=7, matrix="rotated 45",]\mpfig draw (up--down) scaled 5 withcolor 2/3[blue,white]; draw (left--right) scaled 5 withcolor 2/3[red,white];\endmpfig\endmppattern
 %\mpfig mplibdrawglyph image(draw fullcircle scaled 100; draw reverse fullcircle scaled 40;) withmppattern "mypatt" withpen pencircle scaled 1 withcolor \mpcolor{red!50!blue!50}; \endmpfig
-%\stopmpfig{14}
+%\stopmpfig{16}
 %\begin{verbatim}
 %    \mppattern{mypatt}               % or \begin{mppattern}{mypatt}
 %      [                              % options: see below
@@ -1304,7 +1326,7 @@ See source file '\inFileName' for licencing and contact information.
 %\startmpfig
 %\begin{mppattern}{pattnocolor}[colored=false, matrix="slanted .3 rotated 15",]\tiny\TeX\end{mppattern}
 %\mpfig picture tex; tex = mpliboutlinetext("\bfseries \TeX"); for i=1 upto mpliboutlinenum: mplibfillandstrokeglyph mpliboutlinepic[i] scaled 8 withmppattern "pattnocolor" withpen pencircle scaled 1/2 withcolor (i/4)[red,blue]; endfor \endmpfig
-%\stopmpfig{16}
+%\stopmpfig{14}
 %\begin{verbatim}
 %    \begin{mppattern}{pattnocolor}
 %      [
@@ -1334,7 +1356,7 @@ See source file '\inFileName' for licencing and contact information.
 % is to give a \emph{textual picture} as the operand of |withmppattern|:
 %\startmpfig
 %\mpfig draw mplibgraphictext "\bfseries\TeX" fakebold 1/2 rotated 10 scaled 8 withmppattern "pattnocolor" withmplibcolors(2/3[red,white], 2/3red); \endmpfig
-%\stopmpfig{7}
+%\stopmpfig{6}
 %\begin{verbatim}
 %    \begin{mplibcode}
 %      beginfig(2)
@@ -1349,6 +1371,32 @@ See source file '\inFileName' for licencing and contact information.
 %      endfig;
 %    \end{mplibcode}
 %\end{verbatim}
+%
+% After v2.42.6, we provide an optional macro for both colored and uncolored patterns:
+% \begin{description}
+%   \item[withpatternstroke \meta{string}]
+%     where the string shall be |"filldraw"|, |"both"|, |"draw"|, |"yes"|, or |"no"|:
+%     |"filldraw"| or |"both"| will tile both the fill part and the stroke part;
+%     |"draw"| or |"yes"| will tile the stroke part only;
+%     all other cases will tile the fill part only, which is the default behavior.
+%     An example:
+%\startmpfig
+%\mpfig pickup pencircle scaled 10; draw image(draw fullcircle scaled 60 withcolor 3/4red; draw unitsquare scaled 60 withoutcolor;) withmppattern "pattnocolor" withpatternstroke "yes"; \endmpfig
+%\stopmpfig{6}
+%\begin{verbatim}
+%    \mpfig
+%      pickup pencircle scaled 10;
+%      draw image(
+%        draw fullcircle scaled 60
+%          withcolor 3/4 red ;        % paints the pattern
+%        draw unitsquare scaled 60
+%          withoutcolor ;
+%      )
+%      withmppattern "pattnocolor"
+%      withpatternstroke "yes" ;
+%    \endmpfig
+%\end{verbatim}
+% \end{description}
 %
 % \subsubsection{Form XObject from \metapost side}\label{sec:transparencygroup}
 % As said \hyperlink{metafunformat}{before} at \secref{mplibsetformat},
@@ -1533,7 +1581,7 @@ See source file '\inFileName' for licencing and contact information.
 %\mpfig draw pic2; \endmpfig
 %\endmplibgroup
 %\mpfig usemplibgroup "myshading" rotated 15 withtransparency (1, 2/3); \endmpfig
-%\stopmpfig{7}
+%\stopmpfig{6}
 %   \hypertarget{doublewrappingexample}{}\relax
 %\begin{verbatim}
 %    \mplibgroup{myshading}[asgroup="wrapped"]
@@ -1567,7 +1615,7 @@ See source file '\inFileName' for licencing and contact information.
 %\startmpfig
 %\mplibgroup{texpatt}[asgroup="wrapped",]\mpfig filldraw fullcircle xscaled 100 yscaled 50 withmppattern "pattnocolor" withcolor 2/3red;\endmpfig \endmplibgroup
 %\usemplibgroup{texpatt}
-%\stopmpfig{11}
+%\stopmpfig{9}
 %\begin{verbatim}
 %    \mplibgroup{texpatt}                  % or \begin{mplibgroup}{texpatt}
 %      [                                   % options: see below
@@ -1585,7 +1633,7 @@ See source file '\inFileName' for licencing and contact information.
 %\end{verbatim}
 %\startmpfig
 %\mpfig usemplibgroup "texpatt" rotated -15 scaled 1.2 withtransparency(1,2/3); \endmpfig
-%\stopmpfig{3}
+%\stopmpfig{2}
 %\begin{verbatim}
 %    \mpfig
 %      usemplibgroup "texpatt"
@@ -1920,7 +1968,7 @@ See source file '\inFileName' for licencing and contact information.
 %\end{verbatim}
 %\startmpfig
 %\mpfig u:=80; path p; p = unitsquare scaled u; def fsquare (expr n) = (point n of p -- point n+1 of p -- point n+2 of p -- point n+3 of p -- cycle) enddef; def rsquare (expr n) = (point n of p -- point n-1 of p -- point n-2 of p -- point n-3 of p -- cycle) enddef; fill p scaled 2 withshadingmethod  "coons" withcoonspatchinit (fsquare(0), red, green, blue, yellow) withcoonspatchnext (1, rsquare(0) shifted (u,0), yellow, red) withcoonspatchnext (1, fsquare(0) shifted (u,u), red, green) withcoonspatchnext (3, rsquare(2) shifted (0,u), yellow, red); pickup pencircle scaled 2; drawarrow fsquare(0) shifted (-1,-1) withcolor (0,1,1); drawarrow rsquare(0) shifted (u+1,-1) withcolor (1,.6,1); drawarrow rsquare(2) shifted (-1,u+1) withcolor (1,.6,1); drawarrow fsquare(0) shifted (u+1,u+1) withcolor (0,1,1); label.lft(btex \sffamily Edge 1 etex rotated 90, (u,u/2)) withcolor (0,1,1); label.bot(btex \sffamily Edge 1 etex , (3/2u,u)) withcolor (1,.6,1); label.rt(btex \sffamily Edge 3 etex rotated -90, (u,3/2u)) withcolor (0,1,1); drawarrow (u,-12)--(u,-3) withpen pencircle scaled 1; label.bot(btex \sffamily\footnotesize point 1 of patch\textsubscript{1} $=$ point 0 of patch\textsubscript{2} etex, (u,-10)); label.top(btex \sffamily Edge 0 etex, (u/2,0)) withcolor (0,1,1);\endmpfig
-%\stopmpfig{20}
+%\stopmpfig{13}
 %\begin{verbatim}
 %   \mpfig
 %     u := 80 ;
@@ -2183,8 +2231,8 @@ See source file '\inFileName' for licencing and contact information.
 
 luatexbase.provides_module {
   name          = "luamplib",
-  version       = "2.42.5",
-  date          = "2026/08/07",
+  version       = "2.42.6",
+  date          = "2026/08/11",
   description   = "Lua package to typeset Metapost with LuaTeX's MPLib.",
 }
 
@@ -2767,6 +2815,7 @@ do
           run_tex_code{"\\convertcolorspec{hsb}{", spec, "}{rgb}\\mplibtmpa"}
           t = format("rgb %s", get_macro"mplibtmpa":gsub(","," "))
         elseif not t:find"%d" then -- named color
+          if not is_defined"extractcolorspecs" then err"needs xcolor package loaded" end
           run_tex_code{"\\extractcolorspecs{", t, "}\\mplibtmpa\\mplibtmpb"}
           t = format("%s %s", get_macro"mplibtmpa", get_macro"mplibtmpb":gsub(","," "))
         end
@@ -4026,6 +4075,9 @@ vardef mpliboutlinetext@# (expr t) text rest =
 enddef ;
 def withmppattern primary p =
   withprescript "mplibpattern=" & if numeric p: decimal fi p
+enddef;
+def withpatternstroke expr a =
+  withprescript "mplibpatternstroke=" & a
 enddef;
 primarydef t withpattern p =
   image(
@@ -5347,7 +5399,19 @@ local function do_preobj_shading (object, prescript)
   ::skip_latelua::
   local key, val = format("MPlibPt%s", on), format(pdfetcs.resfmt, on)
   add_pattern_resources(key,val)
-  pdf_literalcode("/Pattern cs/%s scn", key)
+%    \end{macrocode}
+% When |withshadingstroke| is |filldraw| or |both|, we shade the fill and the stroke;
+% when |withshadingstroke| is |draw| or |yes|, we shade the stroke;
+% all other cases shade the fill, the default behavior.
+%    \begin{macrocode}
+  local stroke = prescript.sh_stroking
+  if stroke == "filldraw" or stroke == "both" then
+    pdf_literalcode("/Pattern cs/%s scn /Pattern CS/%s SCN", key, key)
+  elseif stroke == "draw" or stroke == "yes" then
+    pdf_literalcode("/Pattern CS/%s SCN", key)
+  else
+    pdf_literalcode("/Pattern cs/%s scn", key)
+  end
 %    \end{macrocode}
 % To avoid possible double execution, once by Pattern gs, once by Sh operator.
 %    \begin{macrocode}
@@ -5546,8 +5610,9 @@ do
     local patt = patterns[name]
     local index = patt and patt.id or err("cannot get pattern object '%s'", name)
     local key = format("MPlibPt%s",index)
+    local stroke, precs, postcs = prescript.mplibpatternstroke
     if patt.colored then
-      pdf_literalcode("/Pattern cs /%s scn", key)
+      precs, postcs = "/Pattern", format("/%s",key)
     else
       local color = prescript.mpliboverridecolor
       if not color then
@@ -5573,7 +5638,19 @@ do
         cs = #t == 4 and "/DeviceCMYK" or #t == 3 and "/DeviceRGB" or "/DeviceGray"
         color = tableconcat(t," ")
       end
-      pdf_literalcode("/MPlibCS%i cs %s /%s scn", pattern_colorspace(cs), color, key)
+      precs, postcs = format("/MPlibCS%i",pattern_colorspace(cs)), format("%s /%s",color,key)
+    end
+%    \end{macrocode}
+% When |withpatternstroke| is |filldraw| or |both|, we tile the fill and the stroke;
+% when |withpatternstroke| is |draw| or |yes|, we tile the stroke;
+% all other cases tile the fill, the default behavior.
+%    \begin{macrocode}
+    if stroke == "filldraw" or stroke == "both" then
+      pdf_literalcode("%s cs %s scn %s CS %s SCN",precs,postcs,precs,postcs)
+    elseif stroke == "draw" or stroke == "yes" then
+      pdf_literalcode("%s CS %s SCN",precs,postcs)
+    else
+      pdf_literalcode("%s cs %s scn",precs,postcs)
     end
     if not patt.done then
       local val = pdfmode and format("%s 0 R",index) or patterns[index]
@@ -6291,7 +6368,7 @@ end
 %    \begin{macrocode}
   \NeedsTeXFormat{LaTeX2e}
   \ProvidesPackage{luamplib}
-    [2026/08/07 v2.42.5 mplib package for LuaTeX]
+    [2026/08/11 v2.42.6 mplib package for LuaTeX]
 \fi
 \ifdefined\newluafunction\else
   \input ltluatex
