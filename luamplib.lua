@@ -11,8 +11,8 @@
 
 luatexbase.provides_module {
   name          = "luamplib",
-  version       = "2.42.5",
-  date          = "2026/08/07",
+  version       = "2.42.6",
+  date          = "2026/08/11",
   description   = "Lua package to typeset Metapost with LuaTeX's MPLib.",
 }
 
@@ -476,6 +476,7 @@ do
           run_tex_code{"\\convertcolorspec{hsb}{", spec, "}{rgb}\\mplibtmpa"}
           t = format("rgb %s", get_macro"mplibtmpa":gsub(","," "))
         elseif not t:find"%d" then -- named color
+          if not is_defined"extractcolorspecs" then err"needs xcolor package loaded" end
           run_tex_code{"\\extractcolorspecs{", t, "}\\mplibtmpa\\mplibtmpb"}
           t = format("%s %s", get_macro"mplibtmpa", get_macro"mplibtmpb":gsub(","," "))
         end
@@ -1580,6 +1581,9 @@ vardef mpliboutlinetext@# (expr t) text rest =
 enddef ;
 def withmppattern primary p =
   withprescript "mplibpattern=" & if numeric p: decimal fi p
+enddef;
+def withpatternstroke expr a =
+  withprescript "mplibpatternstroke=" & a
 enddef;
 primarydef t withpattern p =
   image(
@@ -2832,7 +2836,14 @@ local function do_preobj_shading (object, prescript)
   ::skip_latelua::
   local key, val = format("MPlibPt%s", on), format(pdfetcs.resfmt, on)
   add_pattern_resources(key,val)
-  pdf_literalcode("/Pattern cs/%s scn", key)
+  local stroke = prescript.sh_stroking
+  if stroke == "filldraw" or stroke == "both" then
+    pdf_literalcode("/Pattern cs/%s scn /Pattern CS/%s SCN", key, key)
+  elseif stroke == "draw" or stroke == "yes" then
+    pdf_literalcode("/Pattern CS/%s SCN", key)
+  else
+    pdf_literalcode("/Pattern cs/%s scn", key)
+  end
   prescript.sh_type = nil
 end
 
@@ -3016,8 +3027,9 @@ do
     local patt = patterns[name]
     local index = patt and patt.id or err("cannot get pattern object '%s'", name)
     local key = format("MPlibPt%s",index)
+    local stroke, precs, postcs = prescript.mplibpatternstroke
     if patt.colored then
-      pdf_literalcode("/Pattern cs /%s scn", key)
+      precs, postcs = "/Pattern", format("/%s",key)
     else
       local color = prescript.mpliboverridecolor
       if not color then
@@ -3043,7 +3055,14 @@ do
         cs = #t == 4 and "/DeviceCMYK" or #t == 3 and "/DeviceRGB" or "/DeviceGray"
         color = tableconcat(t," ")
       end
-      pdf_literalcode("/MPlibCS%i cs %s /%s scn", pattern_colorspace(cs), color, key)
+      precs, postcs = format("/MPlibCS%i",pattern_colorspace(cs)), format("%s /%s",color,key)
+    end
+    if stroke == "filldraw" or stroke == "both" then
+      pdf_literalcode("%s cs %s scn %s CS %s SCN",precs,postcs,precs,postcs)
+    elseif stroke == "draw" or stroke == "yes" then
+      pdf_literalcode("%s CS %s SCN",precs,postcs)
+    else
+      pdf_literalcode("%s cs %s scn",precs,postcs)
     end
     if not patt.done then
       local val = pdfmode and format("%s 0 R",index) or patterns[index]

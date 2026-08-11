@@ -1,5 +1,11 @@
                        History of the luamplib package
 
+2026/08/11 2.42.6
+   * withshadingstroke works with picture object as well as path object.
+     See the documentation 1.2.12 for details.
+   * new optional macro for tiling pattern: withpatternstroke
+     See the documentation 1.2.14 for details.
+
 2026/08/07 2.42.5
    * clean up color-related codes
 
