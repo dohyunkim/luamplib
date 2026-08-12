@@ -3039,7 +3039,7 @@ do
         cs = texgettoks"mplibtmptoks"
       end
     else
-      if fill or not color:find"%a" then
+      if fill then
         color = colorsplit(color)
       else
         color = color:match"%a+ (.-) %a+":explode()
@@ -3060,7 +3060,7 @@ do
     local stroke, fillgs, strkgs = prescript.mplibpatternstroke
     if patt.colored then
       fillgs = format("/Pattern cs /%s scn", key)
-      strkgs = format("/Pattern CS /%s SCN", key)
+      strkgs = stroke and format("/Pattern CS /%s SCN", key)
     else
       local color = prescript.mpliboverridecolor
       if not color then
@@ -3069,7 +3069,7 @@ do
       end
       if not color then return end
       fillgs = uncoloredGS(color,key,true)
-      strkgs = uncoloredGS(color,key,false)
+      strkgs = stroke and uncoloredGS(color,key,false)
     end
     if stroke == "filldraw" or stroke == "both" then
       pdf_literalcode("%s %s", fillgs, strkgs)
