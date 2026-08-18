@@ -478,12 +478,6 @@ do
           local op = name == "rgb" and "rg" or name == "cmyk" and "k" or name == "gray" and "g"
           if not op then err"unknown color model" end
           t = ("%s %s %s %s"):format(value, op, value, op:upper())
-        elseif t:find" cs " then -- spot color raw export
-          name = t:match("^/(.-) cs ")
-          texsprint(ccexplat, {
-            "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
-            name, "}{\\pdf_object_ref:n{", name, "}}"
-          })
         end
       elseif is_defined"ver@colorspace.sty" and t:find"^/&" then
         local a,b,c,d = t:match"^(.- cs) (.- CS) (.- scn?) (.- SCN?)$"
@@ -2130,6 +2124,13 @@ local function do_preobj_CR(object,prescript)
   local override = prescript and prescript.mpliboverridecolor
   if override then
     pdf_literalcode(override)
+    if not pdfmode and override:find" cs " then
+      local name = override:match("^/(.-) cs ")
+      texsprint(ccexplat, {
+        "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
+        name, "}{\\pdf_object_ref:n{", name, "}}"
+      })
+    end
   else
     local cs = object.color
     if cs and #cs > 0 then
