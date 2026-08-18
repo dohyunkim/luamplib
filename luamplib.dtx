@@ -4663,12 +4663,21 @@ local function do_preobj_CR(object,prescript)
   local override = prescript and prescript.mpliboverridecolor
   if override then
     pdf_literalcode(override)
-    if not pdfmode and override:find" cs " then
-      local name = override:match("^/(.-) cs ")
-      texsprint(ccexplat, {
-        "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
-        name, "}{\\pdf_object_ref:n{", name, "}}"
-      })
+    if not pdfmode and override:find" [cC][sS] " then
+      local name1 = override:match("^/(.-) cs ")
+      local name2 = override:match(" /(.-) CS ")
+      if name1 then
+        texsprint(ccexplat, {
+          "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
+          name1, "}{\\pdf_object_ref:n{", name1, "}}"
+        })
+      end
+      if name2 and name1 ~= name2 then
+        texsprint(ccexplat, {
+          "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
+          name2, "}{\\pdf_object_ref:n{", name2, "}}"
+        })
+      end
     end
   else
     local cs = object.color
