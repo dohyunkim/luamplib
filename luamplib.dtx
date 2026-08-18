@@ -1030,14 +1030,15 @@ See source file '\inFileName' for licencing and contact information.
 %     |mplibgraphictext| (see below \secref{mplibgraphictext}), or |infont| operator,
 %     though technically only the last one is a true textual picture.
 %     Note that the picture, including transparency group,
-%     in which the objects are filled \emph{without} color
+%     in which the objects are painted \emph{without} color
 %     can also be regarded as a textual picture.\footnote{\relax
-%       See below \secref{mplibdrawglyph},
+%       See the last \hyperlink{strokeshadingexa}{example} in this subsection.
+%       See also below \secref{mplibdrawglyph},
 %       particularly the first \hyperlink{firstpatternexample}{example} of tiling pattern
 %       at \secref{mppattern}.
 %       See also \secref{transparencygroup} and \secref{mplibgroupendmplibgroup},
 %       particularly the example in the \hyperlink{para:pictureshading}{note}
-%       about picture shading and transparency group.}
+%       about picture shading with transparency group.}
 %\startmpfig
 %\mpfig draw btex \bfseries\TeX etex rotated 15 scaled 6 withshadingmethod "linear" withshadingvector (0,3) withshadingstep ( withshadingfraction 1/2 withshadingcolors (red,green)) withshadingstep ( withshadingfraction 1 withshadingcolors (green,blue)); \endmpfig
 %\stopmpfig{6}
@@ -1160,7 +1161,7 @@ See source file '\inFileName' for licencing and contact information.
 %     |"filldraw"| or |"both"| will shade both the fill part and the stroke part;
 %     |"draw"| or |"yes"| will shade the stroke part only;
 %     all other cases will shade the fill part only, which is the default behavior.
-%     An example:
+%     An \hypertarget{strokeshadingexa}{example}:
 %\startmpfig
 %\mpfig pickup pencircle scaled 10; draw image(draw fullcircle scaled 60 withoutcolor; draw unitsquare scaled 60 withoutcolor;) withshadingmethod "linear" withshadingcolors (blue,red) withshadingstroke "yes";\endmpfig
 %\stopmpfig{5}
@@ -1655,10 +1656,10 @@ See source file '\inFileName' for licencing and contact information.
 % \hline
 %   |asgroup|   &\emph{string} & \parbox{236bp}{\strut
 %                              |""|, or any comma-separated combination of |isolated|,\\[-1pt]
-%                              |knockout|, |wrapped| and |off|, or |"masking"|\strut}\\
+%                              |knockout|, |wrapped|, and |off|; or |"masking"|\strut}\\
 %  |colorspace| &\emph{string} & \parbox{250bp}{\strut
 %                              |/CS| entry to a transparency group, such as |"/DeviceGray"|,\\[-1pt]
-%                              |"/DeviceRGB"| or |"/DeviceCMYK"|\strut}\\
+%                              |"/DeviceRGB"|, or |"/DeviceCMYK"|\strut}\\
 %   |bbox|      &\emph{table} or \emph{string} & |llx|, |lly|, |urx|, |ury| values\kern1pt*\\
 %   |matrix|    &\emph{table} or \emph{string} & |xx|, |yx|, |xy|, |yy| values\kern1pt*
 %                                                or MP transform code\\
@@ -2787,9 +2788,7 @@ do
   local colfmt = ccexplat and "l3color" or "xcolor"
   local mplibcolorfmt = {
     xcolor = [[{\setbox0\hbox{{\color%s\global\mplibtmptoks\expandafter{\current@color}}}}]],
-    l3color = is_defined"__color_export_format_raw:nnN" and
-      [[\color_export:nnN%s{raw}\l_tmpa_tl\mplibtmptoks\expandafter{\l_tmpa_tl}]]
-      or [[{\setbox0\hbox{{\color_select:n%s\global\mplibtmptoks\expanded{{\current@color}}}}}]]
+    l3color = [[\color_export:nnN%s{raw}\l_tmpa_tl\mplibtmptoks\expandafter{\l_tmpa_tl}]]
   }
   function process_color (str)
     if str then
@@ -2805,12 +2804,7 @@ do
       run_tex_code(myfmt:format(str), ccexplat or catat11)
       local t = texgettoks"mplibtmptoks"
       if not pdfmode then
-        ---[[ to be removed
-        if t:find"^ color%d" then
-          local tt = t:explode()
-          t = ("/%s cs %s scn /%s CS %s SCN"):format(tt[1], tt[2], tt[1], tt[2])
-        --]]
-        elseif t:find"^hsb" then
+        if t:find"^hsb" then
           local spec = t:gsub("^hsb ",""):gsub(" ",",")
           run_tex_code{"\\convertcolorspec{hsb}{", spec, "}{rgb}\\mplibtmpa"}
           t = format("rgb %s", get_macro"mplibtmpa":gsub(","," "))
@@ -3051,9 +3045,7 @@ do
   luamplib.gettexcolor = function (str, rgb)
     local res = process_color(str):match'"mpliboverridecolor=(.+)"'
     if res:find" cs " then
-      if not rgb then
-        warn("%s is a spot color. Forced to CMYK", str)
-      end
+      info("%s is a spot color. Forced to %s", str, rgb and "RGB" or "CMYK")
       if not is_xcolor(str) then
         run_tex_code({
           "\\color_export:nnN{",

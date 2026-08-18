@@ -448,9 +448,7 @@ do
   local colfmt = ccexplat and "l3color" or "xcolor"
   local mplibcolorfmt = {
     xcolor = [[{\setbox0\hbox{{\color%s\global\mplibtmptoks\expandafter{\current@color}}}}]],
-    l3color = is_defined"__color_export_format_raw:nnN" and
-      [[\color_export:nnN%s{raw}\l_tmpa_tl\mplibtmptoks\expandafter{\l_tmpa_tl}]]
-      or [[{\setbox0\hbox{{\color_select:n%s\global\mplibtmptoks\expanded{{\current@color}}}}}]]
+    l3color = [[\color_export:nnN%s{raw}\l_tmpa_tl\mplibtmptoks\expandafter{\l_tmpa_tl}]]
   }
   function process_color (str)
     if str then
@@ -466,12 +464,7 @@ do
       run_tex_code(myfmt:format(str), ccexplat or catat11)
       local t = texgettoks"mplibtmptoks"
       if not pdfmode then
-        ---[[ to be removed
-        if t:find"^ color%d" then
-          local tt = t:explode()
-          t = ("/%s cs %s scn /%s CS %s SCN"):format(tt[1], tt[2], tt[1], tt[2])
-        --]]
-        elseif t:find"^hsb" then
+        if t:find"^hsb" then
           local spec = t:gsub("^hsb ",""):gsub(" ",",")
           run_tex_code{"\\convertcolorspec{hsb}{", spec, "}{rgb}\\mplibtmpa"}
           t = format("rgb %s", get_macro"mplibtmpa":gsub(","," "))
@@ -671,9 +664,7 @@ do
   luamplib.gettexcolor = function (str, rgb)
     local res = process_color(str):match'"mpliboverridecolor=(.+)"'
     if res:find" cs " then
-      if not rgb then
-        warn("%s is a spot color. Forced to CMYK", str)
-      end
+      info("%s is a spot color. Forced to %s", str, rgb and "RGB" or "CMYK")
       if not is_xcolor(str) then
         run_tex_code({
           "\\color_export:nnN{",
