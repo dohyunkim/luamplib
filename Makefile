@@ -23,8 +23,7 @@ SRCDIR    = $(TEXMFDIR)/source/$(FORMAT)/$(NAME)
 TEXMFDIR  = $(shell kpsewhich --var-value TEXMFHOME)
 
 CTAN_ZIP  = $(NAME).zip
-TDS_ZIP   = $(NAME).tds.zip
-ZIPS      = $(CTAN_ZIP) $(TDS_ZIP)
+ZIPS      = $(CTAN_ZIP)
 
 DOLATEX   = texfot --quiet --tee=/dev/null --ignore "hypdoc" --ignore "^Overfull" --ignore "^Underfull" lualatex -recorder $(DTX)
 
@@ -32,10 +31,9 @@ all: $(GENERATED)
 doc: all
 unpack: $(UNPACKED)
 ctan: check $(CTAN_ZIP)
-tds: $(TDS_ZIP)
 world: all ctan
 
-.PHONY: all doc unpack ctan tds check world
+.PHONY: all doc unpack ctan check world
 
 %.pdf: %.dtx
 	@$(DOLATEX)
@@ -51,12 +49,12 @@ check: $(UNPACKED)
 	! grep "blank space"              test-$(NAME)-plain.log
 	! grep "blank space"              test-$(NAME)-latex.log
 
-$(CTAN_ZIP): $(SOURCES) $(DOC) $(TDS_ZIP)
+$(CTAN_ZIP): $(SOURCES) $(DOC)
 	@echo "Making $@ for CTAN upload."
 	@$(RM) -- $@
 	@mkdir -p $(NAME)
 	@cp -f $(SOURCES) $(DOC) $(NAME)
-	@zip -q -9 -r $@ $(TDS_ZIP) $(NAME)
+	@zip -q -9 -r $@ $(NAME)
 	@$(RM) -r $(NAME)
 
 define run-install
@@ -64,15 +62,6 @@ define run-install
 @mkdir -p $(DOCDIR) && cp $(DOCFILES) $(DOCDIR)
 @mkdir -p $(SRCDIR) && cp $(SRCFILES) $(SRCDIR)
 endef
-
-$(TDS_ZIP): TEXMFDIR=./tmp-texmf
-$(TDS_ZIP): $(ALL)
-	@echo "Making TDS-ready archive $@."
-	@$(RM) -- $@
-	@if test -e $(TEXMFDIR); then echo 'bad TEXMFDIR'; false; fi
-	$(run-install)
-	@cd $(TEXMFDIR) && zip -q -9 ../$@ -r .
-	@$(RM) -r -- $(TEXMFDIR)
 
 .PHONY: install clean mrproper help
 
@@ -95,6 +84,5 @@ help:
 	@echo '                    unpack - extract all files'
 	@echo '                       doc - compile documentation'
 	@echo '                      ctan - run check & generate archive for CTAN'
-	@echo '                       tds - generate a TDS compliant archive'
 	@echo '                     check - run the test files'
 	@echo '   install TEXMFDIR=<path> - install in <path>'

@@ -1,5 +1,10 @@
                        History of the luamplib package
 
+2026/08/20 2.42.8
+   * remove lines now obsolete by the l3kernel update
+   * reduce redundant call of pdfmanagement in DVI mode
+   * drop TDS_ZIP in Makefile
+
 2026/08/12 2.42.7
    * fix withpatternstroke used with withmplibcolors
 

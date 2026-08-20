@@ -11,8 +11,8 @@
 
 luatexbase.provides_module {
   name          = "luamplib",
-  version       = "2.42.7",
-  date          = "2026/08/12",
+  version       = "2.42.8",
+  date          = "2026/08/20",
   description   = "Lua package to typeset Metapost with LuaTeX's MPLib.",
 }
 
@@ -448,9 +448,7 @@ do
   local colfmt = ccexplat and "l3color" or "xcolor"
   local mplibcolorfmt = {
     xcolor = [[{\setbox0\hbox{{\color%s\global\mplibtmptoks\expandafter{\current@color}}}}]],
-    l3color = is_defined"__color_export_format_raw:nnN" and
-      [[\color_export:nnN%s{raw}\l_tmpa_tl\mplibtmptoks\expandafter{\l_tmpa_tl}]]
-      or [[{\setbox0\hbox{{\color_select:n%s\global\mplibtmptoks\expanded{{\current@color}}}}}]]
+    l3color = [[\color_export:nnN%s{raw}\l_tmpa_tl\mplibtmptoks\expandafter{\l_tmpa_tl}]]
   }
   function process_color (str)
     if str then
@@ -466,12 +464,7 @@ do
       run_tex_code(myfmt:format(str), ccexplat or catat11)
       local t = texgettoks"mplibtmptoks"
       if not pdfmode then
-        ---[[ to be removed
-        if t:find"^ color%d" then
-          local tt = t:explode()
-          t = ("/%s cs %s scn /%s CS %s SCN"):format(tt[1], tt[2], tt[1], tt[2])
-        --]]
-        elseif t:find"^hsb" then
+        if t:find"^hsb" then
           local spec = t:gsub("^hsb ",""):gsub(" ",",")
           run_tex_code{"\\convertcolorspec{hsb}{", spec, "}{rgb}\\mplibtmpa"}
           t = format("rgb %s", get_macro"mplibtmpa":gsub(","," "))
@@ -485,12 +478,6 @@ do
           local op = name == "rgb" and "rg" or name == "cmyk" and "k" or name == "gray" and "g"
           if not op then err"unknown color model" end
           t = ("%s %s %s %s"):format(value, op, value, op:upper())
-        elseif t:find" cs " then -- spot color raw export
-          name = t:match("^/(.-) cs ")
-          texsprint(ccexplat, {
-            "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
-            name, "}{\\pdf_object_ref:n{", name, "}}"
-          })
         end
       elseif is_defined"ver@colorspace.sty" and t:find"^/&" then
         local a,b,c,d = t:match"^(.- cs) (.- CS) (.- scn?) (.- SCN?)$"
@@ -671,9 +658,7 @@ do
   luamplib.gettexcolor = function (str, rgb)
     local res = process_color(str):match'"mpliboverridecolor=(.+)"'
     if res:find" cs " then
-      if not rgb then
-        warn("%s is a spot color. Forced to CMYK", str)
-      end
+      info("%s is a spot color. Forced to %s", str, rgb and "RGB" or "CMYK")
       if not is_xcolor(str) then
         run_tex_code({
           "\\color_export:nnN{",
@@ -2139,6 +2124,22 @@ local function do_preobj_CR(object,prescript)
   local override = prescript and prescript.mpliboverridecolor
   if override then
     pdf_literalcode(override)
+    if not pdfmode and override:find" [cC][sS] " then
+      local name1 = override:match("^/(.-) cs ")
+      local name2 = override:match(" /(.-) CS ")
+      if name1 then
+        texsprint(ccexplat, {
+          "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
+          name1, "}{\\pdf_object_ref:n{", name1, "}}"
+        })
+      end
+      if name2 and name1 ~= name2 then
+        texsprint(ccexplat, {
+          "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
+          name2, "}{\\pdf_object_ref:n{", name2, "}}"
+        })
+      end
+    end
   else
     local cs = object.color
     if cs and #cs > 0 then

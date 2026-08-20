@@ -85,7 +85,7 @@ See source file '\inFileName' for licencing and contact information.
 %<*driver>
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesFile{luamplib.drv}%
-  [2026/08/12 v2.42.7 Interface for using the mplib library]%
+  [2026/08/20 v2.42.8 Interface for using the mplib library]%
 \documentclass[11pt,a4paper]{ltxdoc}
 \usepackage{geometry,graphicx,xspace}
 \usepackage[x11names]{xcolor}
@@ -174,7 +174,7 @@ See source file '\inFileName' for licencing and contact information.
 % \author{Hans Hagen, Taco Hoekwater, Elie Roux, Philipp Gesang and Kim Dohyun\\
 % Current Maintainer: Kim Dohyun\\
 % Support: \url{https://github.com/lualatex/luamplib}}
-% \date{2026/08/12 v2.42.7}
+% \date{2026/08/20 v2.42.8}
 %
 % \maketitle
 %
@@ -268,7 +268,7 @@ See source file '\inFileName' for licencing and contact information.
 %
 %   \notabene As \emph{metafun} is such a complicated format,
 %   we cannot support all the special effects provided by \emph{metafun}.
-%   At least, however, transparency (actually opacity), shading (gradient colors) and transparency group
+%   At least, however, transparency (actually opacity), shading (gradient colors), and transparency group
 %   are fully supported,
 %   and outlinetext is supported by our own alternative |mpliboutlinetext|
 %   (see below \secref{mpliboutlinetext}).
@@ -290,7 +290,7 @@ See source file '\inFileName' for licencing and contact information.
 %   it is regarded by \pkg{luamplib} as
 %   a color expression of \TeX\ side.
 %   For instance, when |withshadecolors("orange",| |2/3red)| is given, the first color |"orange"| will be
-%   interpreted as a \pkg{color}, \pkg{xcolor} or \pkg{l3color}'s expression.
+%   interpreted as a \pkg{color}, \pkg{xcolor}, or \pkg{l3color}'s expression.
 %
 %   From v2.36, shading is available with \emph{plain} format as well with extended functionality.
 %   See below \secref{luamplibshading}.
@@ -413,7 +413,7 @@ See source file '\inFileName' for licencing and contact information.
 %   when the character code of the text argument is less than $32$~(control characters),
 %   or is equal to $35$~(|#|), $36$~(|$|), \iffalse |$|\fi
 %   $37$~(|%|), $38$~(|&|), $92$~(|\|), $94$~(|^|),
-%   $95$~(|_|), $123$~(|{|), $125$~(|}|), $126$~(|~|) or $127$~(DEL),
+%   $95$~(|_|), $123$~(|{|), $125$~(|}|), $126$~(|~|), or $127$~(DEL),
 %   the original |infont| operator will be used instead of |textext| operator
 %   so that the font part will be honored.
 %   Despite the revision, please take care of |char| operator in the text argument,
@@ -513,7 +513,7 @@ See source file '\inFileName' for licencing and contact information.
 %
 % \subsubsection{\TeX\ color}\label{sec:mpcolor}
 %   With the command \bsx\cs{mpcolor[...]\{...\}}\esx, color expressions of
-%   \pkg{color}, \pkg{xcolor} and \pkg{l3color} module/packages can be used in the mplibcode
+%   \pkg{color}, \pkg{xcolor}, and \pkg{l3color} module/packages can be used in the mplibcode
 %   environment (after |withcolor| command, in principle).
 %   See the example above at \secref{mpdim}.
 %   The optional |[...]| denotes the option of \pkg{color} or \pkg{xcolor}'s \cs{color} command.
@@ -632,7 +632,7 @@ See source file '\inFileName' for licencing and contact information.
 % \subsubsection{luamplib.cfg}
 %   At the end of package loading, \pkg{luamplib} searches
 %   |luamplib.cfg| and, if found, reads the file in automatically.
-%   Frequently used settings such as \cs{everymplib}, \cs{mplibforcehmode}
+%   Frequently used settings such as \cs{everymplib}, \cs{mplibforcehmode},
 %   or \cs{mplibcodeinherit} are suitable for going into this file.
 %
 % \subsubsection{Tagged PDF}\label{sec:taggedPDF}
@@ -860,12 +860,12 @@ See source file '\inFileName' for licencing and contact information.
 %      drawcolor 2/3 red                      % or strokecolor 2/3 red
 %      ;
 %\end{verbatim}
-%   |fakebold|, |fillcolor| and |drawcolor| (or |strokecolor|) are optional;
-%   default values are |2|, |"white"| and |"black"| respectively.\footnote{Users can
+%   |fakebold|, |fillcolor|, and |drawcolor| (or |strokecolor|) are optional;
+%   default values are |2|, |"white"|, and |"black"| respectively.\footnote{Users can
 %     use the |withmplibcolors| macro instead of |fillcolor| and |drawcolor| options.
 %     See \secref{withmplibcolors} on this macro.}
 %   When the color expression is given in string type, it is regarded as
-%   \pkg{color}, \pkg{xcolor} or \pkg{l3color}'s expression.
+%   \pkg{color}, \pkg{xcolor}, or \pkg{l3color}'s expression.
 %   All from |mplibgraphictext| to the end of sentence will compose an
 %   anonymous picture, which can be drawn or assigned to a variable.
 %   Incidentally, |withfillcolor| and |withdrawcolor| are synonyms of
@@ -891,7 +891,7 @@ See source file '\inFileName' for licencing and contact information.
 %   \metapost operator \bsx|mplibglyph|
 %   \meta{number} \textbar\ \meta{string} |of| \meta{number} \textbar\ \meta{string}\esx\
 %   returns a \metapost picture
-%   containing outline paths of a glyph in OpenType, TrueType or Type1 (|.pfb|) fonts.
+%   containing outline paths of a glyph in OpenType, TrueType, or Type1 (|.pfb|) fonts.
 %   When a TFM font is specified, \metapost primitive |glyph| will be called.
 %\begin{verbatim}
 %    mplibglyph 50  of \fontid\font           % slot 50 of current font
@@ -980,7 +980,7 @@ See source file '\inFileName' for licencing and contact information.
 %      scaled 3 ;
 %\end{verbatim}
 %   After the process, |mpliboutlinepic[]|
-%   and |mpliboutlinenum| will be preserved as global variables;
+%   and |mpliboutlinenum| will be preserved as global variables:
 %   |mpliboutlinepic[1]| |...| |mpliboutlinepic[mpliboutlinenum]|
 %   will be an array of images, each of which containing outline paths of a glyph or a rule.
 %
@@ -1030,14 +1030,15 @@ See source file '\inFileName' for licencing and contact information.
 %     |mplibgraphictext| (see below \secref{mplibgraphictext}), or |infont| operator,
 %     though technically only the last one is a true textual picture.
 %     Note that the picture, including transparency group,
-%     in which the objects are filled \emph{without} color
+%     in which the objects are painted \emph{without} color
 %     can also be regarded as a textual picture.\footnote{\relax
-%       See below \secref{mplibdrawglyph},
+%       See the last \hyperlink{strokeshadingexa}{example} in this subsection.
+%       See also below \secref{mplibdrawglyph},
 %       particularly the first \hyperlink{firstpatternexample}{example} of tiling pattern
 %       at \secref{mppattern}.
 %       See also \secref{transparencygroup} and \secref{mplibgroupendmplibgroup},
 %       particularly the example in the \hyperlink{para:pictureshading}{note}
-%       about picture shading and transparency group.}
+%       about picture shading with transparency group.}
 %\startmpfig
 %\mpfig draw btex \bfseries\TeX etex rotated 15 scaled 6 withshadingmethod "linear" withshadingvector (0,3) withshadingstep ( withshadingfraction 1/2 withshadingcolors (red,green)) withshadingstep ( withshadingfraction 1 withshadingcolors (green,blue)); \endmpfig
 %\stopmpfig{6}
@@ -1061,7 +1062,7 @@ See source file '\inFileName' for licencing and contact information.
 %    |withshadingpoints|, |withshadingcenters|, |withshadingextend|, |withshadingmatrix|,
 %    and |withshadingstroke|.
 %   \item More shading methods are available: |"triangle"|, |"lattice"|, |"coons"|, and |"tensor"|.
-%    See below \secref{trianglemesh}, \secref{latticemesh}, \secref{coonspatchmesh} and
+%    See below \secref{trianglemesh}, \secref{latticemesh}, \secref{coonspatchmesh}, and
 %    \secref{tensorpatchmesh} for these methods.
 %   \end{itemize}
 % The syntax is \bsx\meta{path} \textbar\ \meta{textual picture} |withshadingmethod| \meta{string}\esx,
@@ -1160,7 +1161,7 @@ See source file '\inFileName' for licencing and contact information.
 %     |"filldraw"| or |"both"| will shade both the fill part and the stroke part;
 %     |"draw"| or |"yes"| will shade the stroke part only;
 %     all other cases will shade the fill part only, which is the default behavior.
-%     An example:
+%     An \hypertarget{strokeshadingexa}{example}:
 %\startmpfig
 %\mpfig pickup pencircle scaled 10; draw image(draw fullcircle scaled 60 withoutcolor; draw unitsquare scaled 60 withoutcolor;) withshadingmethod "linear" withshadingcolors (blue,red) withshadingstroke "yes";\endmpfig
 %\stopmpfig{5}
@@ -1408,7 +1409,7 @@ See source file '\inFileName' for licencing and contact information.
 % The syntax is basically the same as \emph{metafun}'s:
 % \bsx\meta{picture} \textbar\ \meta{path} |asgroup| \meta{string}\esx, the latter being
 % |""| (empty string)
-% or any comma-separated combination of |isolated|, |knockout|, |wrapped| and |off|
+% or any comma-separated combination of |isolated|, |knockout|, |wrapped|, and |off|
 % (for example, |"isolated,knockout,wrapped"|),
 % which will return a \metapost picture.
 % The additional features provided by \pkg{luamplib} are:
@@ -1655,10 +1656,10 @@ See source file '\inFileName' for licencing and contact information.
 % \hline
 %   |asgroup|   &\emph{string} & \parbox{236bp}{\strut
 %                              |""|, or any comma-separated combination of |isolated|,\\[-1pt]
-%                              |knockout|, |wrapped| and |off|, or |"masking"|\strut}\\
+%                              |knockout|, |wrapped|, and |off|; or |"masking"|\strut}\\
 %  |colorspace| &\emph{string} & \parbox{250bp}{\strut
 %                              |/CS| entry to a transparency group, such as |"/DeviceGray"|,\\[-1pt]
-%                              |"/DeviceRGB"| or |"/DeviceCMYK"|\strut}\\
+%                              |"/DeviceRGB"|, or |"/DeviceCMYK"|\strut}\\
 %   |bbox|      &\emph{table} or \emph{string} & |llx|, |lly|, |urx|, |ury| values\kern1pt*\\
 %   |matrix|    &\emph{table} or \emph{string} & |xx|, |yx|, |xy|, |yy| values\kern1pt*
 %                                                or MP transform code\\
@@ -2100,7 +2101,7 @@ See source file '\inFileName' for licencing and contact information.
 %   One thing is worth mentioning, however:
 %   if you return a Lua \emph{table} to the \metapost process,
 %   it is automatically converted to a relevant \metapost data type
-%   such as pair, color, cmykcolor or transform.
+%   such as pair, color, cmykcolor, or transform.
 %   So users can save some extra toil of converting a table to a string, though it's not a big deal.
 %   For instance, |runscript| |"return {1,0,0}"| will give you the \metapost color expression |(1,0,0)|
 %   automatically.
@@ -2110,7 +2111,7 @@ See source file '\inFileName' for licencing and contact information.
 %   Users can access the Lua table containing \mplib instances, |luamplib.instances|,
 %   through which \metapost variables are also easily accessible from Lua side,
 %   as documented in Lua\TeX{} manual \S\,11.2.8.4 (|texdoc luatex|).
-%   The following example will print |false|, |3.0|, |MetaPost| and
+%   The following example will print |false|, |3.0|, |MetaPost|, and
 %   the knots and the cyclicity of the path |unitsquare|.
 %\begin{verbatim}
 %    \begin{mplibcode}[myinstance]
@@ -2231,8 +2232,8 @@ See source file '\inFileName' for licencing and contact information.
 
 luatexbase.provides_module {
   name          = "luamplib",
-  version       = "2.42.7",
-  date          = "2026/08/12",
+  version       = "2.42.8",
+  date          = "2026/08/20",
   description   = "Lua package to typeset Metapost with LuaTeX's MPLib.",
 }
 
@@ -2787,9 +2788,7 @@ do
   local colfmt = ccexplat and "l3color" or "xcolor"
   local mplibcolorfmt = {
     xcolor = [[{\setbox0\hbox{{\color%s\global\mplibtmptoks\expandafter{\current@color}}}}]],
-    l3color = is_defined"__color_export_format_raw:nnN" and
-      [[\color_export:nnN%s{raw}\l_tmpa_tl\mplibtmptoks\expandafter{\l_tmpa_tl}]]
-      or [[{\setbox0\hbox{{\color_select:n%s\global\mplibtmptoks\expanded{{\current@color}}}}}]]
+    l3color = [[\color_export:nnN%s{raw}\l_tmpa_tl\mplibtmptoks\expandafter{\l_tmpa_tl}]]
   }
   function process_color (str)
     if str then
@@ -2805,12 +2804,7 @@ do
       run_tex_code(myfmt:format(str), ccexplat or catat11)
       local t = texgettoks"mplibtmptoks"
       if not pdfmode then
-        ---[[ to be removed
-        if t:find"^ color%d" then
-          local tt = t:explode()
-          t = ("/%s cs %s scn /%s CS %s SCN"):format(tt[1], tt[2], tt[1], tt[2])
-        --]]
-        elseif t:find"^hsb" then
+        if t:find"^hsb" then
           local spec = t:gsub("^hsb ",""):gsub(" ",",")
           run_tex_code{"\\convertcolorspec{hsb}{", spec, "}{rgb}\\mplibtmpa"}
           t = format("rgb %s", get_macro"mplibtmpa":gsub(","," "))
@@ -2824,12 +2818,6 @@ do
           local op = name == "rgb" and "rg" or name == "cmyk" and "k" or name == "gray" and "g"
           if not op then err"unknown color model" end
           t = ("%s %s %s %s"):format(value, op, value, op:upper())
-        elseif t:find" cs " then -- spot color raw export
-          name = t:match("^/(.-) cs ")
-          texsprint(ccexplat, {
-            "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
-            name, "}{\\pdf_object_ref:n{", name, "}}"
-          })
         end
       elseif is_defined"ver@colorspace.sty" and t:find"^/&" then
         local a,b,c,d = t:match"^(.- cs) (.- CS) (.- scn?) (.- SCN?)$"
@@ -3051,9 +3039,7 @@ do
   luamplib.gettexcolor = function (str, rgb)
     local res = process_color(str):match'"mpliboverridecolor=(.+)"'
     if res:find" cs " then
-      if not rgb then
-        warn("%s is a spot color. Forced to CMYK", str)
-      end
+      info("%s is a spot color. Forced to %s", str, rgb and "RGB" or "CMYK")
       if not is_xcolor(str) then
         run_tex_code({
           "\\color_export:nnN{",
@@ -4677,6 +4663,22 @@ local function do_preobj_CR(object,prescript)
   local override = prescript and prescript.mpliboverridecolor
   if override then
     pdf_literalcode(override)
+    if not pdfmode and override:find" [cC][sS] " then
+      local name1 = override:match("^/(.-) cs ")
+      local name2 = override:match(" /(.-) CS ")
+      if name1 then
+        texsprint(ccexplat, {
+          "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
+          name1, "}{\\pdf_object_ref:n{", name1, "}}"
+        })
+      end
+      if name2 and name1 ~= name2 then
+        texsprint(ccexplat, {
+          "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
+          name2, "}{\\pdf_object_ref:n{", name2, "}}"
+        })
+      end
+    end
   else
     local cs = object.color
     if cs and #cs > 0 then
@@ -6382,7 +6384,7 @@ end
 %    \begin{macrocode}
   \NeedsTeXFormat{LaTeX2e}
   \ProvidesPackage{luamplib}
-    [2026/08/12 v2.42.7 mplib package for LuaTeX]
+    [2026/08/20 v2.42.8 mplib package for LuaTeX]
 \fi
 \ifdefined\newluafunction\else
   \input ltluatex
