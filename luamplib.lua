@@ -3364,6 +3364,13 @@ do
     return t
   end
 
+  local function invert_matrix (t)
+    local a, b, c, d, x, y = t[1], t[2], t[3], t[4], t[5], t[6]
+    local det = a*d - b*c
+    assert(det ~= 0, 'transformation is not invertible!')
+    return format("%f %f %f %f %f %f cm ", d/det, -b/det, -c/det, a/det, (d*x-b*y)/det, (a*y-c*x)/det)
+  end
+
   local function pdf_textfigure(font,size,text,width,height,depth)
     text = text:gsub(".",function(c)
       return format("\\hbox{\\char%i}",string.byte(c)) -- kerning happens in metapost : false
@@ -3577,10 +3584,11 @@ do
                         objecttype = 'fill'
                       end
                     end
-                    local shade_no, shade_stroke, shade_cm = do_preobj_SH(object,prescript) -- shading
+                    local shade_no, shade_stroke, shade_cm, shade_im = do_preobj_SH(object,prescript) -- shading
                     if shade_no then
-                      pdf_literalcode"q"
-                      objecttype = false
+                      objecttype = "shade"
+                      shade_im = transformed and invert_matrix{sx, rx, ry, sy, tx ,ty} or ""
+                      shade_cm = shade_cm and shade_cm.." cm " or ""
                     end
                     if transformed then
                       start_pdf_code()
@@ -3612,6 +3620,11 @@ do
                         end
                       elseif objecttype == "both" then
                         pdf_literalcode(evenodd and "h B*" or "h B")
+                      elseif objecttype == "shade" then
+                        pdf_literalcode("q W%s %s %s%s/MPlibSh%s sh Q",
+                          evenodd and "*" or "",
+                          shade_stroke and "s" or "n",
+                          shade_im, shade_cm, shade_no)
                       end
                     end
                     if transformed then
@@ -3645,17 +3658,15 @@ do
                         pdf_literalcode(open and "S" or "h S")
                       elseif objecttype == "both" then
                         pdf_literalcode(evenodd and "h B*" or "h B")
+                      elseif objecttype == "shade" then
+                        pdf_literalcode("q W%s %s %s%s/MPlibSh%s sh Q",
+                          evenodd and "*" or "",
+                          shade_stroke and "s" or "n",
+                          shade_im, shade_cm, shade_no)
                       end
                       if transformed then
                         stop_pdf_code()
                       end
-                    end
-                    if shade_no then -- shading
-                      pdf_literalcode("W%s %s %s/MPlibSh%s sh Q",
-                        evenodd and "*" or "",
-                        shade_stroke and "s" or "n",
-                        shade_cm and shade_cm.." cm " or "",
-                        shade_no)
                     end
                   end
                 end

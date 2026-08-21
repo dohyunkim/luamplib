@@ -5969,6 +5969,16 @@ do
   end
 
 %    \end{macrocode}
+%    For path shading with transformed pen
+%    \begin{macrocode}
+  local function invert_matrix (t)
+    local a, b, c, d, x, y = t[1], t[2], t[3], t[4], t[5], t[6]
+    local det = a*d - b*c
+    assert(det ~= 0, 'transformation is not invertible!')
+    return format("%f %f %f %f %f %f cm ", d/det, -b/det, -c/det, a/det, (d*x-b*y)/det, (a*y-c*x)/det)
+  end
+
+%    \end{macrocode}
 %    Codes below to insert PDF lieterals are mostly from \ConTeXt general,
 %    with small changes when needed.
 %    \begin{macrocode}
@@ -6215,10 +6225,11 @@ do
 %    \end{macrocode}
 %    Added : shading
 %    \begin{macrocode}
-                    local shade_no, shade_stroke, shade_cm = do_preobj_SH(object,prescript) -- shading
+                    local shade_no, shade_stroke, shade_cm, shade_im = do_preobj_SH(object,prescript) -- shading
                     if shade_no then
-                      pdf_literalcode"q"
-                      objecttype = false
+                      objecttype = "shade"
+                      shade_im = transformed and invert_matrix{sx, rx, ry, sy, tx ,ty} or ""
+                      shade_cm = shade_cm and shade_cm.." cm " or ""
                     end
                     if transformed then
                       start_pdf_code()
@@ -6250,6 +6261,11 @@ do
                         end
                       elseif objecttype == "both" then
                         pdf_literalcode(evenodd and "h B*" or "h B")
+                      elseif objecttype == "shade" then
+                        pdf_literalcode("q W%s %s %s%s/MPlibSh%s sh Q",
+                          evenodd and "*" or "",
+                          shade_stroke and "s" or "n",
+                          shade_im, shade_cm, shade_no)
                       end
                     end
                     if transformed then
@@ -6286,22 +6302,20 @@ do
                         pdf_literalcode(open and "S" or "h S")
                       elseif objecttype == "both" then
                         pdf_literalcode(evenodd and "h B*" or "h B")
+                      elseif objecttype == "shade" then
+                        pdf_literalcode("q W%s %s %s%s/MPlibSh%s sh Q",
+                          evenodd and "*" or "",
+                          shade_stroke and "s" or "n",
+                          shade_im, shade_cm, shade_no)
                       end
                       if transformed then
                         stop_pdf_code()
                       end
                     end
 %    \end{macrocode}
-%    Added to \ConTeXt general: post-object colors and shading stuff.
+%    Added to \ConTeXt general: post-object special effects.
 %    Beware |q ... Q| scope.
 %    \begin{macrocode}
-                    if shade_no then -- shading
-                      pdf_literalcode("W%s %s %s/MPlibSh%s sh Q",
-                        evenodd and "*" or "",
-                        shade_stroke and "s" or "n",
-                        shade_cm and shade_cm.." cm " or "",
-                        shade_no)
-                    end
                   end
                 end
                 if fading_ == "start" then
