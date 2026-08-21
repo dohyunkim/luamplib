@@ -3579,7 +3579,7 @@ do
                     end
                     local shade_no, shade_stroke, shade_cm = do_preobj_SH(object,prescript) -- shading
                     if shade_no then
-                      pdf_literalcode"q /Pattern cs"
+                      pdf_literalcode"q"
                       objecttype = false
                     end
                     if transformed then
