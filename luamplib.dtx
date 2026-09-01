@@ -85,7 +85,7 @@ See source file '\inFileName' for licencing and contact information.
 %<*driver>
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesFile{luamplib.drv}%
-  [2026/08/20 v2.42.8 Interface for using the mplib library]%
+  [2026/09/01 v2.42.9 Interface for using the mplib library]%
 \documentclass[11pt,a4paper]{ltxdoc}
 \usepackage{geometry,graphicx,xspace}
 \usepackage[x11names]{xcolor}
@@ -174,7 +174,7 @@ See source file '\inFileName' for licencing and contact information.
 % \author{Hans Hagen, Taco Hoekwater, Elie Roux, Philipp Gesang and Kim Dohyun\\
 % Current Maintainer: Kim Dohyun\\
 % Support: \url{https://github.com/lualatex/luamplib}}
-% \date{2026/08/20 v2.42.8}
+% \date{2026/09/01 v2.42.9}
 %
 % \maketitle
 %
@@ -1459,6 +1459,8 @@ See source file '\inFileName' for licencing and contact information.
 %   you would probably want to append to the sentence
 %   `|withgroupbbox| |(bot| |lft| |llcorner| |p,| |top| |rt| |urcorner| |p)|',
 %   supposing that the pen was selected by the |pickup| command.
+%   However, this option is not needed in most cases
+%   as \pkg{luamplib} v2.42.9 or after tries to detect pen width information.
 %
 % \end{description}
 % An example showing the effect of transparency group and
@@ -2232,8 +2234,8 @@ See source file '\inFileName' for licencing and contact information.
 
 luatexbase.provides_module {
   name          = "luamplib",
-  version       = "2.42.8",
-  date          = "2026/08/20",
+  version       = "2.42.9",
+  date          = "2026/09/01",
   description   = "Lua package to typeset Metapost with LuaTeX's MPLib.",
 }
 
@@ -3177,7 +3179,8 @@ luamplib.shadecolor = function (str)
 %    \end{mplibcode}
 %    \end{document}
 %\end{verbatim}
-%   another one: user-defined DeviceN colorspace
+%   another one: user-defined DeviceN colorspace.
+%   This can be automatically done when process color is used as a shading color component.
 %\begin{verbatim}
 %    \DocumentMetadata{ }
 %    \documentclass{article}
@@ -5765,7 +5768,6 @@ local function do_preobj_FADE (object, prescript)
                 pdfmode and format(pdfetcs.resfmt, on) or on, bc)
   else
     local bbox = prescript.mplibfadebbox:explode":"
-    local dx, dy = -bbox[1], -bbox[2]
     local vec = prescript.mplibfadevector; vec = vec and vec:explode":"
     if not vec then
       if fd_type == "linear" then
@@ -5799,6 +5801,14 @@ local function do_preobj_FADE (object, prescript)
         cb[i] = (prescript[format("sh_color_b_%i",i)] or "0"):explode":"
       end
     end
+
+    local pen = mplib.pen_info(object)
+    if pen and pen.width then
+      local wd = pen.width / 2
+      bbox = { bbox[1]-wd, bbox[2]-wd, bbox[3]+wd, bbox[4]+wd }
+    end
+
+    local dx, dy = -bbox[1], -bbox[2]
     local matrix = prescript.sh_matrix or "1 0 0 1 0 0"
     matrix = matrix:find"%a" and get_mp_matrix(matrix) or matrix:explode()
     matrix[5] = matrix[5] + dx
@@ -5850,9 +5860,19 @@ local function do_preobj_GRP (object, prescript)
       trgroup[v] = true
     end
     trgroup.bbox = prescript.mplibgroupbbox:explode":"
+    trgroup.widths = { }
     put2output[[\begingroup\setbox\mplibscratchbox\hbox\bgroup\luamplibtagasgroupset]]
   elseif grstate == "stop" then
     local llx,lly,urx,ury = tableunpack(trgroup.bbox)
+
+    if #trgroup.widths > 0 then
+      local wd = math.max(tableunpack(trgroup.widths))
+      if wd and wd > 0 then
+        wd = wd/2
+        llx,lly,urx,ury = llx-wd, lly-wd, urx+wd, ury+wd
+      end
+    end
+
     put2output(tableconcat{
       "\\egroup",
       format("\\wd\\mplibscratchbox %fbp", urx-llx),
@@ -6033,6 +6053,17 @@ do
       end
     end
     return t
+  end
+
+%    \end{macrocode}
+%    For path shading with transformed pen
+%    \begin{macrocode}
+  local function invert_matrix (t)
+    local a, b, c, d, x, y = t[1], t[2], t[3], t[4], t[5], t[6]
+    local det = a*d - b*c
+    assert(det ~= 0, 'transformation is not invertible!')
+    return format("%f %f %f %f %f %f cm ",
+      d/det, 0-b/det, 0-c/det, a/det, (d*x-b*y)/det, (a*y-c*x)/det)
   end
 
 %    \end{macrocode}
@@ -6271,6 +6302,12 @@ do
                     if pen then
                       if pen.type == 'elliptical' then
                         transformed, penwidth = pen_characteristics(object) -- boolean, value
+%    \end{macrocode}
+% next three lines inserted for asgroup objects drawn with a thick pen
+%    \begin{macrocode}
+                        if penwidth and pdfetcs.tr_group.widths then
+                          tableinsert(pdfetcs.tr_group.widths, penwidth)
+                        end
                         pdf_literalcode("%f w",penwidth)
                         if objecttype == 'fill' then
                           objecttype = 'both'
@@ -6282,10 +6319,11 @@ do
 %    \end{macrocode}
 %    Added : shading
 %    \begin{macrocode}
-                    local shade_no, shade_stroke, shade_cm = do_preobj_SH(object,prescript) -- shading
+                    local shade_no, shade_stroke, shade_cm, shade_im = do_preobj_SH(object,prescript) -- shading
                     if shade_no then
-                      pdf_literalcode"q /Pattern cs"
-                      objecttype = false
+                      objecttype = "shade"
+                      shade_im = transformed and invert_matrix{sx, rx, ry, sy, tx ,ty} or ""
+                      shade_cm = shade_cm and shade_cm.." cm " or ""
                     end
                     if transformed then
                       start_pdf_code()
@@ -6317,6 +6355,11 @@ do
                         end
                       elseif objecttype == "both" then
                         pdf_literalcode(evenodd and "h B*" or "h B")
+                      elseif objecttype == "shade" then
+                        pdf_literalcode("q W%s %s %s%s/MPlibSh%s sh Q",
+                          evenodd and "*" or "",
+                          shade_stroke and "s" or "n",
+                          shade_im, shade_cm, shade_no)
                       end
                     end
                     if transformed then
@@ -6324,7 +6367,7 @@ do
                     end
                     local path = object.htap
 %    \end{macrocode}
-%    How can we generate an |htap| object? Please let us know if you have succeeded.
+%    |htap| objects are generated by, say, |filldraw| with |pensquare|.
 %    \begin{macrocode}
                     if path then
                       if transformed then
@@ -6353,22 +6396,20 @@ do
                         pdf_literalcode(open and "S" or "h S")
                       elseif objecttype == "both" then
                         pdf_literalcode(evenodd and "h B*" or "h B")
+                      elseif objecttype == "shade" then
+                        pdf_literalcode("q W%s %s %s%s/MPlibSh%s sh Q",
+                          evenodd and "*" or "",
+                          shade_stroke and "s" or "n",
+                          shade_im, shade_cm, shade_no)
                       end
                       if transformed then
                         stop_pdf_code()
                       end
                     end
 %    \end{macrocode}
-%    Added to \ConTeXt general: post-object colors and shading stuff.
+%    Added to \ConTeXt general: post-object special effects.
 %    Beware |q ... Q| scope.
 %    \begin{macrocode}
-                    if shade_no then -- shading
-                      pdf_literalcode("W%s %s %s/MPlibSh%s sh Q",
-                        evenodd and "*" or "",
-                        shade_stroke and "s" or "n",
-                        shade_cm and shade_cm.." cm " or "",
-                        shade_no)
-                    end
                   end
                 end
                 if fading_ == "start" then
@@ -6451,7 +6492,7 @@ end
 %    \begin{macrocode}
   \NeedsTeXFormat{LaTeX2e}
   \ProvidesPackage{luamplib}
-    [2026/08/20 v2.42.8 mplib package for LuaTeX]
+    [2026/09/01 v2.42.9 mplib package for LuaTeX]
 \fi
 \ifdefined\newluafunction\else
   \input ltluatex
