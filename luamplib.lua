@@ -156,8 +156,66 @@ luamplib.noneedtoreplace = noneedtoreplace
 
 local name_b = "%f[%a_]"
 local name_e = "%f[^%a_]"
-local btex_etex = name_b.."btex"..name_e.."%s*(.-)%s*"..name_b.."etex"..name_e
-local verbatimtex_etex = name_b.."verbatimtex"..name_e.."%s*(.-)%s*"..name_b.."etex"..name_e
+local etex_pat    = name_b.."etex"..name_e
+local special_pat = '[%%"%a_]' -- start of a comment, a string, or a name
+
+local function trim (str)
+  return (str:gsub("^%s+",""):gsub("%s+$",""))
+end
+
+local function scan_mpcode (data, action)
+  local res, n, pos, i, count = {}, 0, 1, 1, 0
+  local len = #data
+  while i <= len do
+    local s = data:find(special_pat, i)
+    if not s then break end
+    local c = data:sub(s,s)
+    if c == "%" then -- a comment runs to the end of the line
+      if action.escapepercent and data:sub(s-1,s-1) == "\\" then
+        i = s + 1
+      else
+        local nl = data:find("\n", s, true) or len + 1
+        if action.comment then
+          res[n+1], res[n+2] = data:sub(pos,s-1), action.comment(data:sub(s,nl-1))
+          n, pos = n+2, nl
+        end
+        i = nl
+      end
+    elseif c == '"' then -- a string never spans a line
+      local q = data:find('["\n]', s+1)
+      if q and data:sub(q,q) == '"' then
+        if action.str then
+          res[n+1], res[n+2] = data:sub(pos,s-1), action.str(data:sub(s+1,q-1))
+          n, pos = n+2, q+1
+        end
+        i = q + 1
+      else
+        i = q or len + 1 -- unterminated: MetaPost flushes it at the line end
+      end
+    else
+      local _, e = data:find("^[%a_]+", s)
+      local block = data:sub(s,e)
+      block = block == "btex" and action.btex
+           or block == "verbatimtex" and action.verbatimtex
+      local es, ee
+      if block then es, ee = data:find(etex_pat, e+1) end
+      if es then
+        res[n+1], res[n+2] = data:sub(pos,s-1), block(trim(data:sub(e+1,es-1)))
+        n, pos, i, count = n+2, ee+1, ee+1, count+1
+      else
+        i = e + 1 -- no etex in sight: not a block after all
+      end
+    end
+  end
+  if pos == 1 then return data, count end
+  res[n+1] = data:sub(pos)
+  return tableconcat(res), count
+end
+
+local replace_texblock = {
+  btex        = function(str) return format("btex %s etex ", str) end, -- space
+  verbatimtex = function(str) return format("verbatimtex %s etex;", str) end, -- semicolon
+}
 
 local currenttime = os.time()
 do
@@ -195,11 +253,8 @@ do
     local fh = ioopen(file,"r")
     if not fh then return file end
     local data = fh:read("*all"); fh:close()
-    local count,cnt = 0,0
-    data, cnt = data:gsub(btex_etex, "btex %1 etex ") -- space
-    count = count + cnt
-    data, cnt = data:gsub(verbatimtex_etex, "verbatimtex %1 etex;") -- semicolon
-    count = count + cnt
+    local count
+    data, count = scan_mpcode(data, replace_texblock)
     if count == 0 then
       noneedtoreplace[name] = true
       fh = ioopen(newfile,"w");
@@ -2048,25 +2103,26 @@ function luamplib.process_mplibcode (data, instancename)
     data = data:gsub("\\mpcolor%s+(.-%b{})","mplibcolor(\"%1\")")
     :gsub("\\mpdim%s+(%b{})", "mplibdimen(\"%1\")")
     :gsub("\\mpdim%s+(\\%a+)","mplibdimen(\"%1\")")
-    :gsub(btex_etex, "btex %1 etex ")
-    :gsub(verbatimtex_etex, "verbatimtex %1 etex;")
+    data = scan_mpcode(data, replace_texblock)
   else
     local t = { } -- to store btex, verbatimtex, string
-    data = data:gsub(btex_etex, function(str)
+    local function store (str)
       t[#t+1] = str
-      return format("btex \\unexpanded{!l!u!a!%s!m!p!l!} etex ",  #t) -- space
-    end)
-    :gsub(verbatimtex_etex, function(str)
-      t[#t+1] = str
-      return format("verbatimtex \\unexpanded{!l!u!a!%s!m!p!l!} etex;", #t) -- semicolon
-    end)
-    :gsub('"(.-)"', function(str)
-      t[#t+1] = str
-      return format('"\\unexpanded{!l!u!a!%s!m!p!l!}"', #t)
-    end)
-    :gsub("\\%%", "\0PerCent\0")
-    :gsub("%%.-\n","\n")
-    :gsub("%zPerCent%z", "\\%%")
+      return #t
+    end
+    data = scan_mpcode(data, {
+      btex = function(str)
+        return format("btex \\unexpanded{!l!u!a!%s!m!p!l!} etex ", store(str)) -- space
+      end,
+      verbatimtex = function(str)
+        return format("verbatimtex \\unexpanded{!l!u!a!%s!m!p!l!} etex;", store(str)) -- semicolon
+      end,
+      str = function(str)
+        return format('"\\unexpanded{!l!u!a!%s!m!p!l!}"', store(str))
+      end,
+      comment = function() return "" end,
+      escapepercent = true,
+    })
     run_tex_code(format("\\mplibtmptoks\\expandafter{\\expanded{%s}}",data))
     data = texgettoks"mplibtmptoks"
     :gsub("##", "#")
@@ -3105,7 +3161,6 @@ local function do_preobj_FADE (object, prescript)
                 pdfmode and format(pdfetcs.resfmt, on) or on, bc)
   else
     local bbox = prescript.mplibfadebbox:explode":"
-    local dx, dy = -bbox[1], -bbox[2]
     local vec = prescript.mplibfadevector; vec = vec and vec:explode":"
     if not vec then
       if fd_type == "linear" then
@@ -3139,6 +3194,14 @@ local function do_preobj_FADE (object, prescript)
         cb[i] = (prescript[format("sh_color_b_%i",i)] or "0"):explode":"
       end
     end
+
+    local pen = mplib.pen_info(object)
+    if pen and pen.width then
+      local wd = pen.width / 2
+      bbox = { bbox[1]-wd, bbox[2]-wd, bbox[3]+wd, bbox[4]+wd }
+    end
+
+    local dx, dy = -bbox[1], -bbox[2]
     local matrix = prescript.sh_matrix or "1 0 0 1 0 0"
     matrix = matrix:find"%a" and get_mp_matrix(matrix) or matrix:explode()
     matrix[5] = matrix[5] + dx
@@ -3186,9 +3249,19 @@ local function do_preobj_GRP (object, prescript)
       trgroup[v] = true
     end
     trgroup.bbox = prescript.mplibgroupbbox:explode":"
+    trgroup.widths = { }
     put2output[[\begingroup\setbox\mplibscratchbox\hbox\bgroup\luamplibtagasgroupset]]
   elseif grstate == "stop" then
     local llx,lly,urx,ury = tableunpack(trgroup.bbox)
+
+    if #trgroup.widths > 0 then
+      local wd = math.max(tableunpack(trgroup.widths))
+      if wd and wd > 0 then
+        wd = wd/2
+        llx,lly,urx,ury = llx-wd, lly-wd, urx+wd, ury+wd
+      end
+    end
+
     put2output(tableconcat{
       "\\egroup",
       format("\\wd\\mplibscratchbox %fbp", urx-llx),
@@ -3368,7 +3441,8 @@ do
     local a, b, c, d, x, y = t[1], t[2], t[3], t[4], t[5], t[6]
     local det = a*d - b*c
     assert(det ~= 0, 'transformation is not invertible!')
-    return format("%f %f %f %f %f %f cm ", d/det, -b/det, -c/det, a/det, (d*x-b*y)/det, (a*y-c*x)/det)
+    return format("%f %f %f %f %f %f cm ",
+      d/det, 0-b/det, 0-c/det, a/det, (d*x-b*y)/det, (a*y-c*x)/det)
   end
 
   local function pdf_textfigure(font,size,text,width,height,depth)
@@ -3576,6 +3650,9 @@ do
                     if pen then
                       if pen.type == 'elliptical' then
                         transformed, penwidth = pen_characteristics(object) -- boolean, value
+                        if penwidth and pdfetcs.tr_group.widths then
+                          tableinsert(pdfetcs.tr_group.widths, penwidth)
+                        end
                         pdf_literalcode("%f w",penwidth)
                         if objecttype == 'fill' then
                           objecttype = 'both'

@@ -1,5 +1,9 @@
                        History of the luamplib package
 
+   * fix btex/etex scanning, now ignoring comments and strings (#204, #205)
+   * fix shading of paths drawn with a transformed or non-circle pen
+   * improve BBox calculation of fading/asgroup objects drawn with a thick pen
+
 2026/08/20 2.42.8
    * remove lines now obsolete by the l3kernel update
    * reduce redundant call of pdfmanagement in DVI mode
