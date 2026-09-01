@@ -2405,13 +2405,82 @@ local noneedtoreplace = {
 luamplib.noneedtoreplace = noneedtoreplace
 
 %    \end{macrocode}
-%    Pattern formats to replace |btex| and |verbatimtex| |...| |etex| in input files,
-%    if needed.
+%    We have to replace |btex| |...| |etex| and |verbatimtex| |...| |etex| in
+%    input files, if needed.  A plain |gsub| will not do, as the scanner of
+%    \textsc{MetaPost} itself skips comments and string literals: a |btex|
+%    occurring in them is just a word, and pairing it with the next real
+%    |etex| would silently swallow the code in between (issue \#204).  So we
+%    scan the code the way \textsc{MetaPost} does, handing each block, string
+%    and comment over to the callbacks in |action|: |btex| and |verbatimtex|
+%    get the body of a block, |str| the contents of a string literal, and
+%    |comment| the comment including its percent sign.  A missing callback
+%    means \emph{leave it alone}.  Inside a block, on the other hand, nothing
+%    but the next |etex| matters---comments are not special there, exactly as
+%    in \textsc{MetaPost}.  Finally, |escapepercent| tells that a percent sign
+%    preceded by a backslash is not the start of a comment.
 %    \begin{macrocode}
 local name_b = "%f[%a_]"
 local name_e = "%f[^%a_]"
-local btex_etex = name_b.."btex"..name_e.."%s*(.-)%s*"..name_b.."etex"..name_e
-local verbatimtex_etex = name_b.."verbatimtex"..name_e.."%s*(.-)%s*"..name_b.."etex"..name_e
+local etex_pat    = name_b.."etex"..name_e
+local special_pat = '[%%"%a_]' -- start of a comment, a string, or a name
+
+local function trim (str)
+  return (str:gsub("^%s+",""):gsub("%s+$",""))
+end
+
+local function scan_mpcode (data, action)
+  local res, n, pos, i, count = {}, 0, 1, 1, 0
+  local len = #data
+  while i <= len do
+    local s = data:find(special_pat, i)
+    if not s then break end
+    local c = data:sub(s,s)
+    if c == "%" then -- a comment runs to the end of the line
+      if action.escapepercent and data:sub(s-1,s-1) == "\\" then
+        i = s + 1
+      else
+        local nl = data:find("\n", s, true) or len + 1
+        if action.comment then
+          res[n+1], res[n+2] = data:sub(pos,s-1), action.comment(data:sub(s,nl-1))
+          n, pos = n+2, nl
+        end
+        i = nl
+      end
+    elseif c == '"' then -- a string never spans a line
+      local q = data:find('["\n]', s+1)
+      if q and data:sub(q,q) == '"' then
+        if action.str then
+          res[n+1], res[n+2] = data:sub(pos,s-1), action.str(data:sub(s+1,q-1))
+          n, pos = n+2, q+1
+        end
+        i = q + 1
+      else
+        i = q or len + 1 -- unterminated: MetaPost flushes it at the line end
+      end
+    else
+      local _, e = data:find("^[%a_]+", s)
+      local block = data:sub(s,e)
+      block = block == "btex" and action.btex
+           or block == "verbatimtex" and action.verbatimtex
+      local es, ee
+      if block then es, ee = data:find(etex_pat, e+1) end
+      if es then
+        res[n+1], res[n+2] = data:sub(pos,s-1), block(trim(data:sub(e+1,es-1)))
+        n, pos, i, count = n+2, ee+1, ee+1, count+1
+      else
+        i = e + 1 -- no etex in sight: not a block after all
+      end
+    end
+  end
+  if pos == 1 then return data, count end
+  res[n+1] = data:sub(pos)
+  return tableconcat(res), count
+end
+
+local replace_texblock = {
+  btex        = function(str) return format("btex %s etex ", str) end, -- space
+  verbatimtex = function(str) return format("verbatimtex %s etex;", str) end, -- semicolon
+}
 
 %    \end{macrocode}
 %   Function |luamplib.finder|
@@ -2459,11 +2528,8 @@ do
 %    ``|etex|'' must be preceded by a space and followed by a space or semicolon as specified in
 %    \LuaTeX\ manual, which is not the case of standalone \metapost though.
 %    \begin{macrocode}
-    local count,cnt = 0,0
-    data, cnt = data:gsub(btex_etex, "btex %1 etex ") -- space
-    count = count + cnt
-    data, cnt = data:gsub(verbatimtex_etex, "verbatimtex %1 etex;") -- semicolon
-    count = count + cnt
+    local count
+    data, count = scan_mpcode(data, replace_texblock)
     if count == 0 then
       noneedtoreplace[name] = true
       fh = ioopen(newfile,"w");
@@ -4549,14 +4615,13 @@ function luamplib.process_mplibcode (data, instancename)
   data = format("\n%s\n%s\n%s\n",everymplib, data, everyendmplib)
   :gsub("\r","\n")
 %    \end{macrocode}
-%    These five lines are needed for |mplibverbatim| mode.
+%    These lines are needed for |mplibverbatim| mode.
 %    \begin{macrocode}
   if luamplib.verbatiminput then
     data = data:gsub("\\mpcolor%s+(.-%b{})","mplibcolor(\"%1\")")
     :gsub("\\mpdim%s+(%b{})", "mplibdimen(\"%1\")")
     :gsub("\\mpdim%s+(\\%a+)","mplibdimen(\"%1\")")
-    :gsub(btex_etex, "btex %1 etex ")
-    :gsub(verbatimtex_etex, "verbatimtex %1 etex;")
+    data = scan_mpcode(data, replace_texblock)
   else
 %    \end{macrocode}
 %    If not |mplibverbatim|, expand |mplibcode| data,
@@ -4566,21 +4631,23 @@ function luamplib.process_mplibcode (data, instancename)
 %    string expressions.
 %    \begin{macrocode}
     local t = { } -- to store btex, verbatimtex, string
-    data = data:gsub(btex_etex, function(str)
+    local function store (str)
       t[#t+1] = str
-      return format("btex \\unexpanded{!l!u!a!%s!m!p!l!} etex ",  #t) -- space
-    end)
-    :gsub(verbatimtex_etex, function(str)
-      t[#t+1] = str
-      return format("verbatimtex \\unexpanded{!l!u!a!%s!m!p!l!} etex;", #t) -- semicolon
-    end)
-    :gsub('"(.-)"', function(str)
-      t[#t+1] = str
-      return format('"\\unexpanded{!l!u!a!%s!m!p!l!}"', #t)
-    end)
-    :gsub("\\%%", "\0PerCent\0")
-    :gsub("%%.-\n","\n")
-    :gsub("%zPerCent%z", "\\%%")
+      return #t
+    end
+    data = scan_mpcode(data, {
+      btex = function(str)
+        return format("btex \\unexpanded{!l!u!a!%s!m!p!l!} etex ", store(str)) -- space
+      end,
+      verbatimtex = function(str)
+        return format("verbatimtex \\unexpanded{!l!u!a!%s!m!p!l!} etex;", store(str)) -- semicolon
+      end,
+      str = function(str)
+        return format('"\\unexpanded{!l!u!a!%s!m!p!l!}"', store(str))
+      end,
+      comment = function() return "" end,
+      escapepercent = true,
+    })
     run_tex_code(format("\\mplibtmptoks\\expandafter{\\expanded{%s}}",data))
     data = texgettoks"mplibtmptoks"
 %    \end{macrocode}
