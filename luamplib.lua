@@ -11,8 +11,8 @@
 
 luatexbase.provides_module {
   name          = "luamplib",
-  version       = "2.42.8",
-  date          = "2026/08/20",
+  version       = "2.42.9",
+  date          = "2026/09/01",
   description   = "Lua package to typeset Metapost with LuaTeX's MPLib.",
 }
 
