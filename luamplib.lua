@@ -3261,6 +3261,7 @@ local function do_preobj_GRP (object, prescript)
         llx,lly,urx,ury = llx-wd, lly-wd, urx+wd, ury+wd
       end
     end
+    trgroup.widths = nil
 
     put2output(tableconcat{
       "\\egroup",

@@ -406,7 +406,7 @@ See source file '\inFileName' for licencing and contact information.
 %
 %   \notabene In the background,
 %   \pkg{luamplib} redefines |infont| operator so that the right side
-%   argument (the font part) is totally ignored. Therefore the left side arguemnt (the text part)
+%   argument (the font part) is totally ignored. Therefore the left side argument (the text part)
 %   will be typeset with the current \TeX\ font.
 %
 %   From v2.35, however, the redefinition of |infont| operator has been revised:
@@ -5872,6 +5872,7 @@ local function do_preobj_GRP (object, prescript)
         llx,lly,urx,ury = llx-wd, lly-wd, urx+wd, ury+wd
       end
     end
+    trgroup.widths = nil
 
     put2output(tableconcat{
       "\\egroup",
