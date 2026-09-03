@@ -1,5 +1,7 @@
                        History of the luamplib package
 
+   * fix picture shading in asgroup xobjects
+
 2026/09/01 2.42.9
    * fix btex/etex scanning, now ignoring comments and strings (#204, #205)
    * fix shading of paths drawn with a transformed or non-circle pen

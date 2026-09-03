@@ -1702,7 +1702,7 @@ def withfadebbox (expr a,b) =
 enddef;
 primarydef p asgroup s =
   image(
-    draw center p
+    draw p
       withprescript "mplibgroupbbox=" &
         decimal (xpart llcorner p -1/4) & ":" &
         decimal (ypart llcorner p -1/4) & ":" &
@@ -1710,7 +1710,6 @@ primarydef p asgroup s =
         decimal (ypart urcorner p +1/4)
       withprescript "gr_state=start"
       withprescript "gr_type=" & s;
-    draw p withprescript "sh_in_xobj=yes";
     draw center p withprescript "gr_state=stop";
   )
 enddef;
@@ -2859,10 +2858,6 @@ local function do_preobj_shading (object, prescript)
   local on,_,matrix = do_preobj_SH(object, prescript)
   local os = format("/PatternType 2/Shading %s", format(pdfetcs.resfmt, on))
   matrix = matrix or "1 0 0 1 0 0"
-  if prescript.sh_in_xobj == "yes" then
-    on = update_pdfobjs(("<<%s/Matrix[%s]>>"):format(os, matrix))
-    goto skip_latelua
-  end
   on = update_pdfobjs()
   if pdfmode then
     put2output(tableconcat{"\\latelua{luamplib.dolatelua(",on,",[[",os,"]],[[",matrix,"]])}"})
@@ -2890,7 +2885,6 @@ local function do_preobj_shading (object, prescript)
     put2output("\\latelua{ luamplib.dolatelua(%s,%s) }", on,
               xobj and ("'%s',[[%s]]"):format(xobj[1], xobj[2]))
   end
-  ::skip_latelua::
   local key, val = format("MPlibPt%s", on), format(pdfetcs.resfmt, on)
   add_pattern_resources(key,val)
   local stroke = prescript.sh_stroking
@@ -3249,19 +3243,16 @@ local function do_preobj_GRP (object, prescript)
       trgroup[v] = true
     end
     trgroup.bbox = prescript.mplibgroupbbox:explode":"
-    trgroup.widths = { }
+    local pen = mplib.pen_info(object)
+    trgroup.penwidth = pen and pen.width or 0
     put2output[[\begingroup\setbox\mplibscratchbox\hbox\bgroup\luamplibtagasgroupset]]
   elseif grstate == "stop" then
     local llx,lly,urx,ury = tableunpack(trgroup.bbox)
 
-    if #trgroup.widths > 0 then
-      local wd = math.max(tableunpack(trgroup.widths))
-      if wd and wd > 0 then
-        wd = wd/2
-        llx,lly,urx,ury = llx-wd, lly-wd, urx+wd, ury+wd
-      end
+    if trgroup.penwidth > 0 then
+      local wd = trgroup.penwidth / 2
+      llx,lly,urx,ury = llx-wd, lly-wd, urx+wd, ury+wd
     end
-    trgroup.widths = nil
 
     put2output(tableconcat{
       "\\egroup",
@@ -3594,7 +3585,7 @@ do
                   pdf_literalcode("%f %f %f %f %f %f cm",ot[3],ot[4],ot[5],ot[6],ot[1],ot[2])
                   pdf_textfigure(object.font,object.dsize,object.text,object.width,object.height,object.depth)
                   stop_pdf_code()
-                elseif not trgroup and fading_ ~= "stop" then
+                elseif trgroup ~= "stop" and fading_ ~= "stop" then
                   local evenodd, collect, both = false, false, false
                   local postscript = object.postscript
                   if not object.istext then
@@ -3651,9 +3642,6 @@ do
                     if pen then
                       if pen.type == 'elliptical' then
                         transformed, penwidth = pen_characteristics(object) -- boolean, value
-                        if penwidth and pdfetcs.tr_group.widths then
-                          tableinsert(pdfetcs.tr_group.widths, penwidth)
-                        end
                         pdf_literalcode("%f w",penwidth)
                         if objecttype == 'fill' then
                           objecttype = 'both'
