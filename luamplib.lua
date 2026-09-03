@@ -1702,7 +1702,7 @@ def withfadebbox (expr a,b) =
 enddef;
 primarydef p asgroup s =
   image(
-    draw p
+    draw center p
       withprescript "mplibgroupbbox=" &
         decimal (xpart llcorner p -1/4) & ":" &
         decimal (ypart llcorner p -1/4) & ":" &
@@ -1710,6 +1710,7 @@ primarydef p asgroup s =
         decimal (ypart urcorner p +1/4)
       withprescript "gr_state=start"
       withprescript "gr_type=" & s;
+    draw p;
     draw center p withprescript "gr_state=stop";
   )
 enddef;
@@ -3243,16 +3244,19 @@ local function do_preobj_GRP (object, prescript)
       trgroup[v] = true
     end
     trgroup.bbox = prescript.mplibgroupbbox:explode":"
-    local pen = mplib.pen_info(object)
-    trgroup.penwidth = pen and pen.width or 0
+    trgroup.widths = { }
     put2output[[\begingroup\setbox\mplibscratchbox\hbox\bgroup\luamplibtagasgroupset]]
   elseif grstate == "stop" then
     local llx,lly,urx,ury = tableunpack(trgroup.bbox)
 
-    if trgroup.penwidth > 0 then
-      local wd = trgroup.penwidth / 2
-      llx,lly,urx,ury = llx-wd, lly-wd, urx+wd, ury+wd
+    if #trgroup.widths > 0 then
+      local wd = math.max(tableunpack(trgroup.widths))
+      if wd and wd > 0 then
+        wd = wd/2
+        llx,lly,urx,ury = llx-wd, lly-wd, urx+wd, ury+wd
+      end
     end
+    trgroup.widths = nil
 
     put2output(tableconcat{
       "\\egroup",
@@ -3410,11 +3414,11 @@ end
 
 do
   local function stop_special_effects(fade,opaq)
-    if fade then -- fading
-      stop_pdf_code()
-    end
     if opaq then -- opacity
       pdf_literalcode(opaq)
+    end
+    if fade then -- fading
+      stop_pdf_code()
     end
   end
 
@@ -3559,8 +3563,8 @@ do
                 local prescript     = object.prescript
                 prescript = prescript and script2table(prescript) -- prescript is now a table
                 do_preobj_CR(object,prescript) -- color
-                local tr_opaq = do_preobj_TR(object,prescript) -- opacity
                 local fading_ = do_preobj_FADE(object,prescript) -- fading
+                local tr_opaq = do_preobj_TR(object,prescript) -- opacity
                 do_preobj_PAT(object,prescript) -- tiling pattern
                 do_preobj_shading(object,prescript) -- shading pattern
                 local trgroup = do_preobj_GRP(object,prescript) -- transparency group
@@ -3585,7 +3589,7 @@ do
                   pdf_literalcode("%f %f %f %f %f %f cm",ot[3],ot[4],ot[5],ot[6],ot[1],ot[2])
                   pdf_textfigure(object.font,object.dsize,object.text,object.width,object.height,object.depth)
                   stop_pdf_code()
-                elseif trgroup ~= "stop" and fading_ ~= "stop" then
+                elseif not trgroup and fading_ ~= "stop" then
                   local evenodd, collect, both = false, false, false
                   local postscript = object.postscript
                   if not object.istext then
@@ -3642,6 +3646,9 @@ do
                     if pen then
                       if pen.type == 'elliptical' then
                         transformed, penwidth = pen_characteristics(object) -- boolean, value
+                        if penwidth and pdfetcs.tr_group.widths then
+                          tableinsert(pdfetcs.tr_group.widths, penwidth)
+                        end
                         pdf_literalcode("%f w",penwidth)
                         if objecttype == 'fill' then
                           objecttype = 'both'
@@ -3737,7 +3744,8 @@ do
                   end
                 end
                 if fading_ == "start" then
-                  pdfetcs.fading.specialeffects = {fading_, tr_opaq}
+                  stop_special_effects(false, tr_opaq)
+                  pdfetcs.fading.specialeffects = {fading_, false}
                 elseif trgroup == "start" then
                   pdfetcs.tr_group.specialeffects = {fading_, tr_opaq}
                 elseif fading_ == "stop" then
