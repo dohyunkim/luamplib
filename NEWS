@@ -1,6 +1,5 @@
                        History of the luamplib package
 
-   * fix picture shading in asgroup xobjects
    * fix transparency used with fading, now affecting only specified object
 
 2026/09/01 2.42.9

@@ -4219,7 +4219,7 @@ primarydef p asgroup s =
         decimal (ypart urcorner p +1/4)
       withprescript "gr_state=start"
       withprescript "gr_type=" & s;
-    draw p;
+    draw p withprescript "sh_in_xobj=yes";
     draw center p withprescript "gr_state=stop";
   )
 enddef;
@@ -4917,6 +4917,17 @@ do
     hue        = "Hue",        saturation = "Saturation", color     = "Color",
     luminosity = "Luminosity", compatible = "Compatible",
   }
+  local full_opacity
+  local function get_full_opacity()
+    if pdfmanagement then
+      full_opacity = "/opacity1 gs"
+    else
+      local on, new = update_pdfobjs"<</BM/Normal/ca 1/CA 1/AIS false>>"
+      local key = add_extgs_resources(on,new)
+      full_opacity = format("/%s gs",key)
+    end
+    return full_opacity
+  end
   function do_preobj_TR(object,prescript)
     if object.postscript == "collect" then return end
     local opaq = prescript and prescript.tr_transparency
@@ -4933,16 +4944,11 @@ do
     for i,v in ipairs(opaq) do
       opaq[i] = format("%.3f", v) :gsub(decimals,rmzeros)
     end
-    for i,v in ipairs{ {mode,opaq[1],opaq[2] or opaq[1]},{"Normal",1,1} } do
-      os = format("<</BM/%s/ca %s/CA %s/AIS false>>",v[1],v[2],v[3])
-      on, new = update_pdfobjs(os)
-      key = add_extgs_resources(on,new)
-      if i == 1 then
-        pdf_literalcode("/%s gs",key)
-      else
-        return format("/%s gs",key)
-      end
-    end
+    os = format("<</BM/%s/ca %s/CA %s/AIS false>>",mode,opaq[1],opaq[2] or opaq[1])
+    on, new = update_pdfobjs(os)
+    key = add_extgs_resources(on,new)
+    pdf_literalcode("/%s gs",key)
+    return full_opacity or get_full_opacity()
   end
 end
 
@@ -5429,6 +5435,10 @@ local function do_preobj_shading (object, prescript)
   local on,_,matrix = do_preobj_SH(object, prescript)
   local os = format("/PatternType 2/Shading %s", format(pdfetcs.resfmt, on))
   matrix = matrix or "1 0 0 1 0 0"
+  if not pdfmode and prescript.sh_in_xobj == "yes" then -- only in dvi mode
+    on = update_pdfobjs(("<<%s/Matrix[%s]>>"):format(os, matrix))
+    goto skip_latelua
+  end
   on = update_pdfobjs()
   if pdfmode then
     put2output(tableconcat{"\\latelua{luamplib.dolatelua(",on,",[[",os,"]],[[",matrix,"]])}"})
@@ -5464,6 +5474,7 @@ local function do_preobj_shading (object, prescript)
     put2output("\\latelua{ luamplib.dolatelua(%s,%s) }", on,
               xobj and ("'%s',[[%s]]"):format(xobj[1], xobj[2]))
   end
+  ::skip_latelua::
   local key, val = format("MPlibPt%s", on), format(pdfetcs.resfmt, on)
   add_pattern_resources(key,val)
 %    \end{macrocode}
@@ -6402,12 +6413,18 @@ do
                         stop_pdf_code()
                       end
                     end
+                  end
+                end
 %    \end{macrocode}
 %    Added to \ConTeXt general: post-object special effects.
 %    Beware |q ... Q| scope.
+%
+% Note that fading itself is just a ExtGS, such that
+% opacity should have effect on individual objects just like color.
+% (color is always reset in front of each graphic object.)
+% The order therefore should be:
+% fading (|q|) --- opacity --- graphic object --- stop opacity --- |...| --- stop fading (|Q|).
 %    \begin{macrocode}
-                  end
-                end
                 if fading_ == "start" then
                   stop_special_effects(false, tr_opaq)
                   pdfetcs.fading.specialeffects = {fading_, false}
