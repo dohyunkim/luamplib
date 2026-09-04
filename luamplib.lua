@@ -3259,9 +3259,8 @@ local function do_preobj_GRP (object, prescript)
       trgroup[v] = true
     end
     trgroup.bbox = prescript.mplibgroupbbox:explode":"
-    if prescript.mplibadjustbbox then
-      trgroup.adjustbbox = prescript.mplibadjustbbox
-    else
+    trgroup.adjustbbox = prescript.mplibadjustbbox
+    if not trgroup.adjustbbox then
       trgroup.widths = { }
     end
     put2output[[\begingroup\setbox\mplibscratchbox\hbox\bgroup\luamplibtagasgroupset]]
@@ -3269,13 +3268,15 @@ local function do_preobj_GRP (object, prescript)
     local llx,lly,urx,ury = tableunpack(trgroup.bbox)
 
     local wd = trgroup.adjustbbox
-    if not wd and #trgroup.widths > 0 then
-      wd = math.max(tableunpack(trgroup.widths))
-      if wd > 0 then
-        wd = wd / 2 * math.sqrt(2)
+    if not wd then
+      if #trgroup.widths > 0 then
+        wd = math.max(tableunpack(trgroup.widths))
+        if wd > 0 then
+          wd = wd / 2 * math.sqrt(2)
+        end
       end
+      trgroup.widths = nil
     end
-    trgroup.widths = nil
     if wd then
       llx,lly,urx,ury = llx-wd, lly-wd, urx+wd, ury+wd
     end
