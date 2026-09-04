@@ -1218,11 +1218,15 @@ See source file '\inFileName' for licencing and contact information.
 %     or six numerics separated by spaces, such as |"1.2 0 0 0.8 0 0"|
 %     (|xx|, |yx|, |xy|, |yy|, |x|, and |y|-part respectively).
 %   \item [withfadebbox (\meta{pair}, \meta{pair})]
-%     sets the bounding box of the fading area, default value being |(llcorner p,| |urcorner p)|.
+%     sets the bounding box (BBox) of the fading area, default value being |(llcorner p,| |urcorner p)|.
 %     Though this option is not needed in most cases, there could be cases when users want to
 %     explicitly control the bounding box.
 %     Particularly, see the description \hyperlink{withgroupbbox}{below}
 %     at \secref{transparencygroup} on the analogous macro |withgroupbbox|.
+%   \item [withadjustbbox \meta{numeric}]
+%     More convenient way to adjust BBox value than |withfadebbox|.
+%     The llcorner of the BBox will move leftward and downward by the amount specified,
+%     and the urcorner will move rightward and upward by the same amount.
 %   \end{description}
 %   An example:
 %\startmpfig
@@ -1452,7 +1456,7 @@ See source file '\inFileName' for licencing and contact information.
 %
 % \item[withgroupbbox (\meta{pair}, \meta{pair})]
 %   \hypertarget{withgroupbbox}{}\relax
-%   sets the bounding box of the XObject,
+%   sets the bounding box (BBox) of the XObject,
 %   default value being |(llcorner p, urcorner p)|.
 %   This option might be needed especially when you draw with a thick pen
 %   a path that touches the boundary;
@@ -1462,6 +1466,10 @@ See source file '\inFileName' for licencing and contact information.
 %   However, this option is not needed in most cases
 %   as \pkg{luamplib} v2.42.9 or after tries to detect pen width information.
 %
+%   \item [withadjustbbox \meta{numeric}]
+%     More convenient way to adjust BBox value than |withgroupbbox|.
+%     The llcorner of the BBox will move leftward and downward by the amount specified,
+%     and the urcorner will move rightward and upward by the same amount.
 % \end{description}
 % An example showing the effect of transparency group and
 % the difference between the \TeX\ and \metapost commands:
@@ -1971,7 +1979,7 @@ See source file '\inFileName' for licencing and contact information.
 %\end{verbatim}
 %\startmpfig
 %\mpfig u:=80; path p; p = unitsquare scaled u; def fsquare (expr n) = (point n of p -- point n+1 of p -- point n+2 of p -- point n+3 of p -- cycle) enddef; def rsquare (expr n) = (point n of p -- point n-1 of p -- point n-2 of p -- point n-3 of p -- cycle) enddef; fill p scaled 2 withshadingmethod  "coons" withcoonspatchinit (fsquare(0), red, green, blue, yellow) withcoonspatchnext (1, rsquare(0) shifted (u,0), yellow, red) withcoonspatchnext (1, fsquare(0) shifted (u,u), red, green) withcoonspatchnext (3, rsquare(2) shifted (0,u), yellow, red); pickup pencircle scaled 2; drawarrow fsquare(0) shifted (-1,-1) withcolor (0,1,1); drawarrow rsquare(0) shifted (u+1,-1) withcolor (1,.6,1); drawarrow rsquare(2) shifted (-1,u+1) withcolor (1,.6,1); drawarrow fsquare(0) shifted (u+1,u+1) withcolor (0,1,1); label.lft(btex \sffamily Edge 1 etex rotated 90, (u,u/2)) withcolor (0,1,1); label.bot(btex \sffamily Edge 1 etex , (3/2u,u)) withcolor (1,.6,1); label.rt(btex \sffamily Edge 3 etex rotated -90, (u,3/2u)) withcolor (0,1,1); drawarrow (u,-12)--(u,-3) withpen pencircle scaled 1; label.bot(btex \sffamily\footnotesize point 1 of patch\textsubscript{1} $=$ point 0 of patch\textsubscript{2} etex, (u,-10)); label.top(btex \sffamily Edge 0 etex, (u/2,0)) withcolor (0,1,1);\endmpfig
-%\stopmpfig{13}
+%\stopmpfig{20}
 %\begin{verbatim}
 %   \mpfig
 %     u := 80 ;
@@ -3018,7 +3026,7 @@ do
         if t then return t end
       end
     end
-    local f = loadstring(code)
+    local f = load(code)
     if type(f) == "function" then
       local buffer = {}
       function mp.print(...)
@@ -3050,7 +3058,7 @@ do
     return str:gsub("\\%%", "\0PerCent\0")
               :gsub("%%.-\n", "")
               :gsub("%%.-$",  "")
-              :gsub("%zPerCent%z", "\\%%")
+              :gsub("\0PerCent\0", "\\%%")
               :gsub("\r.-$",  "")
               :gsub("%s+", " ")
   end
@@ -4208,6 +4216,9 @@ def withfadebbox (expr a,b) =
     decimal ypart a & ":" &
     decimal xpart b & ":" &
     decimal ypart b
+enddef;
+def withadjustbbox expr n =
+  withprescript "mplibadjustbbox=" & decimal n
 enddef;
 primarydef p asgroup s =
   image(
@@ -5808,9 +5819,14 @@ local function do_preobj_FADE (object, prescript)
       end
     end
 
-    local pen = mplib.pen_info(object)
-    if pen and pen.width then
-      local wd = pen.width / 2
+    local wd = prescript.mplibadjustbbox
+    if not wd then
+      local pen = mplib.pen_info(object)
+      if pen and pen.width then
+        wd = pen.width / 2 * math.sqrt(2)
+      end
+    end
+    if wd then
       bbox = { bbox[1]-wd, bbox[2]-wd, bbox[3]+wd, bbox[4]+wd }
     end
 
@@ -5866,19 +5882,26 @@ local function do_preobj_GRP (object, prescript)
       trgroup[v] = true
     end
     trgroup.bbox = prescript.mplibgroupbbox:explode":"
-    trgroup.widths = { }
+    if prescript.mplibadjustbbox then
+      trgroup.adjustbbox = prescript.mplibadjustbbox
+    else
+      trgroup.widths = { }
+    end
     put2output[[\begingroup\setbox\mplibscratchbox\hbox\bgroup\luamplibtagasgroupset]]
   elseif grstate == "stop" then
     local llx,lly,urx,ury = tableunpack(trgroup.bbox)
 
-    if #trgroup.widths > 0 then
-      local wd = math.max(tableunpack(trgroup.widths))
-      if wd and wd > 0 then
-        wd = wd/2
-        llx,lly,urx,ury = llx-wd, lly-wd, urx+wd, ury+wd
+    local wd = trgroup.adjustbbox
+    if not wd and #trgroup.widths > 0 then
+      wd = math.max(tableunpack(trgroup.widths))
+      if wd > 0 then
+        wd = wd / 2 * math.sqrt(2)
       end
     end
     trgroup.widths = nil
+    if wd then
+      llx,lly,urx,ury = llx-wd, lly-wd, urx+wd, ury+wd
+    end
 
     put2output(tableconcat{
       "\\egroup",

@@ -1,5 +1,7 @@
                        History of the luamplib package
 
+   * new optional macro for fading and asgroup: withadjustbbox
+     See the documentation 1.2.13 and 1.2.15 for details.
    * fix transparency used with fading, now affecting only specified object
 
 2026/09/01 2.42.9

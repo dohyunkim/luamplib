@@ -635,7 +635,7 @@ do
         if t then return t end
       end
     end
-    local f = loadstring(code)
+    local f = load(code)
     if type(f) == "function" then
       local buffer = {}
       function mp.print(...)
@@ -660,7 +660,7 @@ do
     return str:gsub("\\%%", "\0PerCent\0")
               :gsub("%%.-\n", "")
               :gsub("%%.-$",  "")
-              :gsub("%zPerCent%z", "\\%%")
+              :gsub("\0PerCent\0", "\\%%")
               :gsub("\r.-$",  "")
               :gsub("%s+", " ")
   end
@@ -1699,6 +1699,9 @@ def withfadebbox (expr a,b) =
     decimal ypart a & ":" &
     decimal xpart b & ":" &
     decimal ypart b
+enddef;
+def withadjustbbox expr n =
+  withprescript "mplibadjustbbox=" & decimal n
 enddef;
 primarydef p asgroup s =
   image(
@@ -3201,9 +3204,14 @@ local function do_preobj_FADE (object, prescript)
       end
     end
 
-    local pen = mplib.pen_info(object)
-    if pen and pen.width then
-      local wd = pen.width / 2
+    local wd = prescript.mplibadjustbbox
+    if not wd then
+      local pen = mplib.pen_info(object)
+      if pen and pen.width then
+        wd = pen.width / 2 * math.sqrt(2)
+      end
+    end
+    if wd then
       bbox = { bbox[1]-wd, bbox[2]-wd, bbox[3]+wd, bbox[4]+wd }
     end
 
@@ -3255,19 +3263,26 @@ local function do_preobj_GRP (object, prescript)
       trgroup[v] = true
     end
     trgroup.bbox = prescript.mplibgroupbbox:explode":"
-    trgroup.widths = { }
+    if prescript.mplibadjustbbox then
+      trgroup.adjustbbox = prescript.mplibadjustbbox
+    else
+      trgroup.widths = { }
+    end
     put2output[[\begingroup\setbox\mplibscratchbox\hbox\bgroup\luamplibtagasgroupset]]
   elseif grstate == "stop" then
     local llx,lly,urx,ury = tableunpack(trgroup.bbox)
 
-    if #trgroup.widths > 0 then
-      local wd = math.max(tableunpack(trgroup.widths))
-      if wd and wd > 0 then
-        wd = wd/2
-        llx,lly,urx,ury = llx-wd, lly-wd, urx+wd, ury+wd
+    local wd = trgroup.adjustbbox
+    if not wd and #trgroup.widths > 0 then
+      wd = math.max(tableunpack(trgroup.widths))
+      if wd > 0 then
+        wd = wd / 2 * math.sqrt(2)
       end
     end
     trgroup.widths = nil
+    if wd then
+      llx,lly,urx,ury = llx-wd, lly-wd, urx+wd, ury+wd
+    end
 
     put2output(tableconcat{
       "\\egroup",

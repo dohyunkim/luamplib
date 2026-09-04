@@ -47,12 +47,14 @@ verbatimtex \lower.2em etex
 beginfig(0);
 draw origin--(1cm,0) withcolor \mpcolor{teal};
 draw btex g etex withcolor \mpcolor{orange};
-draw btex\tracingcommands0
+draw btex
+% this is a comment at the very first position.
+% this is a comment at second line.
+  \tracingcommands0
   multi%
   \begin{huge}line\end{huge}
   texcode
-  with \%
-  etex shifted (10,0);
+  with \% % etex shifted (10,0);
 draw bbox currentpicture;
 endfig;
 
