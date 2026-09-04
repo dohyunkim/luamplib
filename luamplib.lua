@@ -2361,13 +2361,9 @@ do
   }
   local full_opacity
   local function get_full_opacity()
-    if pdfmanagement then
-      full_opacity = "/opacity1 gs"
-    else
-      local on, new = update_pdfobjs"<</BM/Normal/ca 1/CA 1/AIS false>>"
-      local key = add_extgs_resources(on,new)
-      full_opacity = format("/%s gs",key)
-    end
+    local on, new = update_pdfobjs"<</BM/Normal/ca 1/CA 1/AIS false>>"
+    local key = add_extgs_resources(on,new)
+    full_opacity = format("/%s gs",key)
     return full_opacity
   end
   function do_preobj_TR(object,prescript)
