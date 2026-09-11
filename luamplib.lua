@@ -2094,6 +2094,9 @@ enddef;
 ]],
 }
 
+luamplib.externalize = { }
+local externalize = luamplib.externalize
+
 luamplib.verbatiminput = false
 luamplib.everymplib    = setmetatable({ [""] = "" },{ __index = function(t) return t[""] end })
 luamplib.everyendmplib = setmetatable({ [""] = "" },{ __index = function(t) return t[""] end })
@@ -2135,6 +2138,11 @@ function luamplib.process_mplibcode (data, instancename)
     :gsub("##", "#")
     :gsub("!l!u!a!(%d+)!m!p!l!", function(str) return t[tonumber(str)] or str end)
   end
+
+  if externalize.name then
+    if externalize.figure(data) then return end
+  end
+
   process(data, instancename)
 end
 
@@ -3824,6 +3832,154 @@ function luamplib.colorconverter (cr)
     local s = cr[1]
     return format("%.3f g %.3f G",s,s), "0 g 0 G"
   end
+end
+
+function externalize.setup ()
+  local name = format("%s-mplib-figure",tex.jobname)
+  local dir = status.output_directory or "."
+  local prefix = format("%s/%s",dir,name)
+  externalize.name    = name
+  externalize.prefix  = prefix
+  externalize.luaname = format("%ss.lua",prefix,name)
+  externalize.pdfname = format("%s/%s.pdf",dir,tex.jobname)
+
+  externalize.figtab = { }
+  if lfs.isfile(externalize.luaname) then
+    externalize.prevfigtab = require(externalize.luaname)
+  else
+    externalize.prevfigtab = { }
+    externalize.activate()
+  end
+
+  luatexbase.add_to_callback("finish_pdffile", function()
+    table.tofile(externalize.luaname, externalize.figtab, "return")
+  end,
+  "luamplib_externalize")
+end
+function externalize.activate ()
+  if status.shell_escape ~= 1 then
+    err"--shell-escape is needed for 'externalize' functionality."
+  end
+
+  texsprint"\\AddToHook{shipout/before}{\z
+    \\directlua{luamplib.externalize.shipout(tex.getbox(\\the\\ShipoutBox))}\z
+    \\DiscardShipoutBox}"
+
+  local texfile = status.filename
+  local majorV, minorV = pdf.getmajorversion(), pdf.getminorversion()
+  luatexbase.add_to_callback("wrapup_run", function()
+    local name = externalize.name
+    local prefix = externalize.prefix
+    local pdffile = externalize.pdfname
+
+    if file.size(pdffile) == 0 then return end
+    if lfs.modification(texfile) > lfs.modification(pdffile) then return end
+
+    for i,v in ipairs(externalize.figtab) do
+      if v.pages then
+        for ii,vv in ipairs(v.pages) do
+          local metric = v.metric[ii]
+          local status = os.spawn(format(
+            "luatex --jobname=%s-%s-%s \z
+            \"\\pagewidth=%sbp\\pageheight=%sbp\z
+            \\pdfvariable horigin 0pt\\pdfvariable vorigin 0pt\z
+            \\pdfvariable majorversion %s\\pdfvariable minorversion %s\z
+            \\topskip=0pt\\nopagenumbers\z
+            \\directlua{img.write{filename=[[%s]],page=%s,pagebox=[[crop]]}}\\bye\"",
+            name, i, ii, metric.width, metric.height, majorV, minorV, pdffile, vv))
+          assert(status == 0, "luatex failed!")
+          os.remove(format("%s-%s-%s.log", prefix, i, ii))
+        end
+      end
+    end
+
+    print "=========================================================================="
+    print "Package luamplib Warning: External figures generated. Rerun for final PDF."
+    print "=========================================================================="
+  end,
+  "luamplib_externalize")
+end
+function externalize.latelua(wd,ht)
+  local llx, lly = pdf.getpos()
+  llx, lly = llx/factor, lly/factor
+  local urx, ury = llx+wd, lly+ht
+  local cropbox = ("/CropBox[%f %f %f %f]"):format(llx, lly, urx, ury):gsub(decimals,rmzeros)
+  pdf.setpageattributes(cropbox)
+end
+function externalize.shipout (head)
+  local attr = luatexbase.attributes.luamplibexternalizeattr
+  local getnext, has_attribute = node.getnext, node.has_attribute
+  local curr = head
+  while curr do
+    if curr.head then
+      local count = attr and has_attribute(curr,attr)
+      if count then
+        local page = (externalize.page or tex.count.ReadonlyShipoutCounter) + 1
+        externalize.page = page
+
+        local wd, ht = curr.width/factor, curr.height/factor
+
+        local latelua = node.new("whatsit","late_lua")
+        latelua.token = format("luamplib.externalize.latelua(%s,%s)", wd, ht)
+        latelua.name = "luamplib.externalize.latelua"
+        curr.head = node.insert_before(curr.head, curr.head, latelua)
+
+        local figtab = externalize.figtab[count]
+        figtab.pages = figtab.pages or { }
+        tableinsert(figtab.pages, page)
+        figtab.metric = figtab.metric or { }
+        tableinsert(figtab.metric, { width = wd, height = ht })
+
+        tex.setbox("mplibscratchbox",node.copy(curr))
+        tex.shipout"mplibscratchbox"
+      else
+        externalize.shipout(curr.head)
+      end
+    elseif curr.leader and curr.leader.head then
+      externalize.shipout(curr.leader.head)
+    end
+    curr = getnext(curr)
+  end
+end
+function externalize.figure(data)
+  local count = tex.count.luamplibexternalizecount + 1
+  tex.setcount("global", "luamplibexternalizecount", count)
+
+  local prefix = externalize.prefix
+  local prevfig = externalize.prevfigtab[count]
+  local prevpages = prevfig and (prevfig.pages or prevfig.prevpages)
+
+  externalize.figtab[count] = { data = data, prevpages = prevpages }
+
+  if get_macro"luamplibexternalizeDoThis" ~= "true" then
+    if prevpages then
+      for i = 1, #prevpages do
+        os.remove(format("%s-%s-%s.pdf", prefix, count, i))
+      end
+    end
+    return
+  end
+
+  if prevfig and prevfig.data == data then
+    if not prevpages then goto externalize_this end
+    for i = 1, #prevpages do
+      local name = format("%s-%s-%s.pdf", prefix, count, i)
+      if not lfs.isfile(name) then goto externalize_this end
+      texsprint(ccexplat,
+        "\\prependtomplibbox\\hbox dir TLT\\bgroup",
+        "\\tag_socket_use:nn{luamplib/figure/begin}\\l__luamplib_tag_alt_dflt_tl",
+        "\\setbox\\mplibscratchbox\\hbox{\\directlua{img.write{filename=[[", name, "]]}}}",
+        "\\tag_socket_use:nnn{luamplib/figure/end}{\\mplibscratchbox}{\\unhbox\\mplibscratchbox}",
+        "\\egroup")
+    end
+    return true
+  end
+
+  ::externalize_this::
+  if not luatexbase.in_callback("wrapup_run","luamplib_externalize") then
+    externalize.activate()
+  end
+  texsprint"\\luamplibexternalizethisfigure"
 end
 -- 
 --  End of File `luamplib.lua'.
