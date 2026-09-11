@@ -2191,16 +2191,16 @@ local function do_preobj_CR(object,prescript)
       local name1 = override:match("^/(.-) cs ")
       local name2 = override:match(" /(.-) CS ")
       if name1 then
-        texsprint(ccexplat, {
+        texsprint(ccexplat,
           "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
           name1, "}{\\pdf_object_ref:n{", name1, "}}"
-        })
+        )
       end
       if name2 and name1 ~= name2 then
-        texsprint(ccexplat, {
+        texsprint(ccexplat,
           "\\pdfmanagement_add:nnn{Page/Resources/ColorSpace}{",
           name2, "}{\\pdf_object_ref:n{", name2, "}}"
-        })
+        )
       end
     end
   else
@@ -2299,18 +2299,18 @@ if pdfmode then
     end
   end
 else
-  texsprint {
+  texsprint (
     "\\luamplibatfirstshipout{",
     "\\special{pdf:obj @MPlibTr<<>>}",
     "\\special{pdf:obj @MPlibSh<<>>}",
     "\\special{pdf:obj @MPlibCS<<>>}",
-    "\\special{pdf:obj @MPlibPt<<>>}}",
-  }
+    "\\special{pdf:obj @MPlibPt<<>>}}"
+  )
   pdfetcs.fallback_update_resources = function (name,res,obj)
-    texsprint{"\\special{pdf:put ", obj, " <<", res, ">>}"}
+    texsprint("\\special{pdf:put ", obj, " <<", res, ">>}")
     local tabname = format("%s_res",name)
     if not pdfetcs[tabname] then
-      texsprint{"\\luamplibateveryshipout{\\special{pdf:put @resources <</", name, " ", obj, ">>}}"}
+      texsprint("\\luamplibateveryshipout{\\special{pdf:put @resources <</", name, " ", obj, ">>}}")
       pdfetcs[tabname] = { }
     end
     tableinsert(pdfetcs[tabname], res)
@@ -2322,20 +2322,20 @@ local function add_extgs_resources (on, new)
   if new then
     local val = format(pdfetcs.resfmt, on)
     if pdfmanagement then
-      texsprint {
+      texsprint (
         "\\csname pdfmanagement_add:nnn\\endcsname{Page/Resources/ExtGState}{", key, "}{", val, "}"
-      }
+      )
     else
       local tr = format("/%s %s", key, val)
       if is_defined(pdfetcs.pgfextgs) then
-        texsprint { "\\csname ", pdfetcs.pgfextgs, "\\endcsname{", tr, "}" }
+        texsprint ( "\\csname ", pdfetcs.pgfextgs, "\\endcsname{", tr, "}" )
       elseif is_defined"TRP@list" then
-        texsprint(catat11,{
+        texsprint(catat11,
           [[\if@filesw\immediate\write\@auxout{]],
           [[\string\g@addto@macro\string\TRP@list{]],
           tr,
-          [[}}\fi]],
-        })
+          [[}}\fi]]
+        )
         if not get_macro"TRP@list":find(tr) then
           texsprint(catat11,[[\global\TRP@reruntrue]])
         end
@@ -2398,9 +2398,9 @@ local function add_shading_resources (on, new)
   if new then
     local key, val = format("MPlibSh%s", on), format(pdfetcs.resfmt, on)
     if pdfmanagement then
-      texsprint {
+      texsprint (
         "\\csname pdfmanagement_add:nnn\\endcsname{Page/Resources/Shading}{", key, "}{", val, "}"
-      }
+      )
     else
       local res = format("/%s %s", key, val)
       pdfetcs.fallback_update_resources("Shading",res,"@MPlibSh")
@@ -2812,13 +2812,13 @@ end
 
 local function add_pattern_resources (key, val)
   if pdfmanagement then
-    texsprint {
+    texsprint (
       "\\csname pdfmanagement_add:nnn\\endcsname{Page/Resources/Pattern}{", key, "}{", val, "}"
-    }
+    )
   else
     local res = format("/%s %s", key, val)
     if is_defined(pdfetcs.pgfpattern) then
-      texsprint { "\\csname ", pdfetcs.pgfpattern, "\\endcsname{", res, "}" }
+      texsprint ( "\\csname ", pdfetcs.pgfpattern, "\\endcsname{", res, "}" )
     else
       pdfetcs.fallback_update_resources("Pattern",res,"@MPlibPt")
     end
@@ -2894,8 +2894,8 @@ local function do_preobj_shading (object, prescript)
     local t = pdfetcs.shadingpatterns[on] or { 0, 0 }
     local mt = matrix:explode()
     matrix = format("%s %s %s %s %s %s", mt[1], mt[2], mt[3], mt[4], mt[5]+t[1], mt[6]+t[2])
-    texsprint{ "\\special{pdf:put ", format(pdfetcs.resfmt, on),
-              format(" <<%s/Matrix[%s]>>}", os, matrix) }
+    texsprint( "\\special{pdf:put ", format(pdfetcs.resfmt, on),
+              format(" <<%s/Matrix[%s]>>}", os, matrix) )
     put2output("\\latelua{ luamplib.dolatelua(%s,%s) }", on,
               xobj and ("'%s',[[%s]]"):format(xobj[1], xobj[2]))
   end
@@ -3047,7 +3047,7 @@ function luamplib.registerpattern ( boxid, name, opts )
     local cnt = #patterns + 1
     local objname = "@mplibpattern" .. cnt
     local metric = format("bbox %s", opts.bbox or format("0 0 %s %s",wd,hd))
-    texsprint {
+    texsprint (
       "\\expandafter\\newbox\\csname luamplib.patternbox.", cnt, "\\endcsname",
       "\\global\\setbox\\csname luamplib.patternbox.", cnt, "\\endcsname",
       "\\hbox{\\unhbox ", boxid, "}\\luamplibatnextshipout{",
@@ -3057,8 +3057,8 @@ function luamplib.registerpattern ( boxid, name, opts )
       "\\box\\csname luamplib.patternbox.", cnt, "\\endcsname",
       "\\special{pdf:put @resources <<", optres, ">>}",
       "\\special{pdf:exobj <<", tableconcat(attr), ">>}",
-      "\\special{pdf:econtent}}",
-    }
+      "\\special{pdf:econtent}}"
+    )
     patterns[cnt] = objname
     patterns[name] = { id = cnt, colored = opts.colored }
     patterns[name].shifts = { get_macro"MPllx", get_macro"MPlly" } -- for shading patterns above
@@ -3072,13 +3072,13 @@ do
     if new then
       local key, val = format("MPlibCS%i",on), format(pdfetcs.resfmt,on)
       if pdfmanagement then
-        texsprint {
+        texsprint (
           "\\csname pdfmanagement_add:nnn\\endcsname{Page/Resources/ColorSpace}{", key, "}{", val, "}"
-        }
+        )
       else
         local res = format("/%s %s", key, val)
         if is_defined(pdfetcs.pgfcolorspace) then
-          texsprint { "\\csname ", pdfetcs.pgfcolorspace, "\\endcsname{", res, "}" }
+          texsprint ( "\\csname ", pdfetcs.pgfcolorspace, "\\endcsname{", res, "}" )
         else
           pdfetcs.fallback_update_resources("ColorSpace",res,"@MPlibCS")
         end
@@ -3416,7 +3416,7 @@ function luamplib.registergroup (boxid, name, opts)
   else
     trgroup.cnt = (trgroup.cnt or 0) + 1
     local objname = format("@mplibtrgr%s", trgroup.cnt)
-    texsprint {
+    texsprint (
       "\\expandafter\\newbox\\csname luamplib.groupbox.", trgroup.cnt, "\\endcsname",
       "\\global\\setbox\\csname luamplib.groupbox.", trgroup.cnt, "\\endcsname",
       "\\hbox{\\unhbox ", boxid, "}\\luamplibatnextshipout{",
@@ -3425,8 +3425,8 @@ function luamplib.registergroup (boxid, name, opts)
       "\\unhbox\\csname luamplib.groupbox.", trgroup.cnt, "\\endcsname",
       "\\special{pdf:put @resources <<", res, ">>}",
       "\\special{pdf:exobj <<", tableconcat(attr), ">>}",
-      "\\special{pdf:econtent}}",
-    }
+      "\\special{pdf:econtent}}"
+    )
     token.set_macro("luamplib.group."..name, tableconcat{
       "\\setbox\\mplibscratchbox\\hbox{\\special{pdf:uxobj ", objname, "}}",
       "\\wd\\mplibscratchbox ", wd, "sp",
@@ -3463,7 +3463,7 @@ do
   local function invert_matrix (t)
     local a, b, c, d, x, y = t[1], t[2], t[3], t[4], t[5], t[6]
     local det = a*d - b*c
-    assert(det ~= 0, 'transformation is not invertible!')
+    if det == 0 then err"transformation is not invertible!" end
     return format("%f %f %f %f %f %f cm ",
       d/det, 0-b/det, 0-c/det, a/det, (d*x-b*y)/det, (a*y-c*x)/det)
   end
