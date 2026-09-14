@@ -181,7 +181,6 @@
   \endgroup
 }
 \def\mplibprempfig#1{%
-  \mplibexternalizebydefault{false}%
   \begingroup
   \mplibsetupcatcodes
   \mplibdoprempfig
@@ -456,6 +455,7 @@
   \mplibexternalizebydefault{true}%
 }
 \def\mplibexternalizebydefault#1{\def\luamplibexternalizeDoThis{#1}}
+\def\mplibexternalizename#1{\directlua{luamplib.externalize.MY_NAME=[===[#1]===]}}
 
 \ifcsname ver@tagpdf.sty\endcsname \else
   \ExplSyntaxOn
