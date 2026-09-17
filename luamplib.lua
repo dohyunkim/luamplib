@@ -2094,7 +2094,7 @@ enddef;
 ]],
 }
 
-luamplib.externalize = { }
+luamplib.externalize = luamplib.externalize or { }
 local externalize = luamplib.externalize
 
 luamplib.verbatiminput = false
@@ -2139,7 +2139,7 @@ function luamplib.process_mplibcode (data, instancename)
     :gsub("!l!u!a!(%d+)!m!p!l!", function(str) return t[tonumber(str)] or str end)
   end
 
-  if externalize.name then
+  if externalize.running then
     if externalize.figure(data) then return end
   end
 
@@ -3839,7 +3839,7 @@ do
 
   function externalize.setup ()
     extname = externalize.MY_NAME or format("%s-mplib-figure",tex.jobname)
-    externalize.name = extname
+    externalize.running = true
     local dir = status.output_directory or "."
     prefix = format("%s/%s",dir,extname)
     luaname = format("%ss.lua",prefix,extname)
@@ -3853,9 +3853,29 @@ do
       externalize.activate()
     end
 
+    local texfile = status.filename
     luatexbase.add_to_callback("finish_pdffile", function()
-      if not figtab.found and prevfigtab.active then
+      local mandatory = figtab.mandatory
+      if mandatory then
+        local depends = externalize.depends
+        for num in pairs(depends) do
+          if mandatory[num] then
+            for _,vv in ipairs(depends[num]) do
+              mandatory[vv] = true
+            end
+          end
+        end
+      end
+      if not figtab.found then
         table.tofile(luaname, figtab, "return")
+        if mandatory then
+          luatexbase.add_to_callback("wrapup_run", function()
+            if file.size(pdfname) == 0 or lfs.modification(texfile) > lfs.modification(pdfname) then
+              return
+            end
+            os.exec{arg[0], "--halt-on-error", tableunpack(arg)}
+          end, "luamplib_externalize")
+        end
       end
     end,
     "luamplib_externalize")
@@ -3911,26 +3931,23 @@ do
 
     if figtab.found then
       if not luatexbase.in_callback("wrapup_run","luamplib_externalize") then
-        externalize.load_wrapup_run()
+        if status.shell_escape == 1 then
+          externalize.wrapup_run()
+        else
+          luatexbase.module_error("luamplib",
+          "--shell-escape is needed for 'externalize' feature.\n\z
+          Rerun with --shell-escape option.")
+          luatexbase.add_to_callback("wrapup_run",function() end,"luamplib_externalize")
+        end
       end
       texsprint"\\DiscardShipoutBox"
     end
   end
-  function externalize.load_wrapup_run ()
-    local shell_escape = status.shell_escape == 1
+  function externalize.wrapup_run ()
     local texfile = status.filename
     local majorV, minorV = pdf.getmajorversion(), pdf.getminorversion()
 
     luatexbase.add_to_callback("wrapup_run", function()
-      if not shell_escape then
-        print"=========================================================="
-        print"Package luamplib Warning: for 'externalize' functionality,"
-        print"        --shell-escape is needed."
-        print"        Rerun with --shell-escape option."
-        print"=========================================================="
-        return
-      end
-
       if file.size(pdfname) == 0 or lfs.modification(texfile) > lfs.modification(pdfname) then
         return
       end
@@ -3942,7 +3959,7 @@ do
           for ii,vv in ipairs(v.pages) do
             local metric = v.metric[ii]
             local status = os.spawn(format(
-              "luatex --jobname=%s-%s-%s \z
+              "luatex --halt-on-error --jobname=%s-%s-%s \z
               \"\\pagewidth=%sbp\\pageheight=%sbp\z
               \\pdfvariable horigin 0pt\\pdfvariable vorigin 0pt\z
               \\pdfvariable majorversion %s\\pdfvariable minorversion %s\z
@@ -3955,10 +3972,7 @@ do
         end
       end
 
-      print "========================================================"
-      print "Package luamplib Warning: External images are generated."
-      print "        Rerun for final PDF."
-      print "========================================================"
+      os.exec{arg[0], "--halt-on-error", tableunpack(arg)}
     end,
     "luamplib_externalize")
   end
@@ -3970,26 +3984,58 @@ do
     local num_of_figs
     if prevfig then
       num_of_figs = prevfig.pages and #prevfig.pages
-                 or prevfig.externalized and 0
+                 or prevfig.changed and 0
                  or prevfig.num_of_figs
     end
+    local depend = get_macro"luamplibexternalizedepends"
 
-    figtab[count] = { data = data, num_of_figs = num_of_figs }
+    figtab[count] = { data = data, num_of_figs = num_of_figs, depend = depend }
 
-    if get_macro"luamplibexternalizeDoThis" == "false" then
-      if num_of_figs then
-        for i = 1, num_of_figs do
-          os.remove(format("%s-%s-%s.pdf", prefix, count, i))
+    if get_macro"luamplibexternalizedothis" == "false" then return end
+
+    local match = prevfig and prevfig.data == data and prevfig.depend == depend
+
+    if prevfigtab.mandatory and prevfigtab.mandatory[count] then
+      goto do_this_fig
+    end
+    if depend then
+      local deps = depend:explode","
+      for i,v in ipairs(deps) do
+        deps[i] = tonumber(v)
+      end
+
+      local depends = externalize.depends or { }
+      externalize.depends = depends
+      depends[count] = deps
+      for _,v in ipairs(deps) do
+        depends[v] = depends[v] or { }
+        tableinsert(depends[v], count)
+      end
+
+      local done = 0
+      for _,v in ipairs(deps) do
+        if figtab[v].changed then
+          done = done + 1
         end
       end
-      return
+
+      if done == #deps then -- all changed: OK
+        goto do_this_fig
+      elseif done == 0 and match then -- none changed and match: OK
+      else
+        match = true -- avoid error
+        figtab.mandatory = figtab.mandatory or { }
+        for _,v in ipairs(deps) do
+          figtab.mandatory[v] = true
+        end
+      end
     end
 
-    if prevfig and prevfig.data == data then
-      if not num_of_figs then goto externalize_this end -- a new figure but data the same?
+    if match then
+      if not num_of_figs then goto do_this_fig end
       for i = 1, num_of_figs do
         local name = format("%s-%s-%s.pdf", prefix, count, i)
-        if not lfs.isfile(name) then goto externalize_this end
+        if not lfs.isfile(name) then goto do_this_fig end
         texsprint(ccexplat,
           "\\prependtomplibbox\\hbox dir TLT\\bgroup",
           "\\tag_socket_use:nn{luamplib/figure/begin}\\l__luamplib_tag_alt_dflt_tl",
@@ -4000,11 +4046,11 @@ do
       return true
     end
 
-    ::externalize_this::
-    figtab[count].externalized = true
+    ::do_this_fig::
     if not figtab.active then
       externalize.activate()
     end
+    figtab[count].changed = true
     texsprint"\\luamplibexternalizethisfigure"
   end
 end

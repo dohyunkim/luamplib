@@ -95,7 +95,6 @@
 }
 \def\mplibgroupopts[#1]{\def\mplibgroupoptions{#1}\mplibgroupmain}
 \def\mplibgroupmain{%
-  \mplibexternalizebydefault{false}%
   \setbox\mplibscratchbox\hbox\bgroup\ignorespaces
 }
 \protected\def\endmplibgroup{\egroup
@@ -130,7 +129,6 @@
   \mplibpatternmain
 }
 \def\mplibpatternmain{%
-  \mplibexternalizebydefault{false}%
   \setbox\mplibscratchbox\hbox\bgroup\ignorespaces
 }
 \protected\def\endmppattern{%
@@ -441,7 +439,6 @@
 \let\luamplibtagasgroupset\relax
 \let\luamplibtagasgroupput\luamplibtagtextboxset
 \let\luamplibexternalizemaybe\relax
-\def\mplibexternalizebydefault#1{}
 \ifcsname SuspendTagging\endcsname\else\endinput\fi
 
 \def\mplibexternalize{%
@@ -452,10 +449,27 @@
     \def\luamplibexternalizemaybe{attr \luamplibexternalizealloc =\luamplibexternalizecount}%
   }%
   \directlua{luamplib.externalize.setup()}%
-  \mplibexternalizebydefault{true}%
+  \def\luamplibexternalizedothis{true}%
+  \let\usemplibgroup\usemplibgroupexternalize
 }
-\def\mplibexternalizebydefault#1{\def\luamplibexternalizeDoThis{#1}}
 \def\mplibexternalizename#1{\directlua{luamplib.externalize.MY_NAME=[===[#1]===]}}
+\def\mplibexternalizesuspend{\ifdefined\luamplibexternalizecount
+  \directlua{luamplib.externalize.running = false}%
+  \aftergroup\mplibexternalizeresume\fi}
+\def\mplibexternalizeresume{\ifdefined\luamplibexternalizecount
+  \directlua{luamplib.externalize.running = true}%
+  \aftergroup\mplibexternalizesuspend\fi}
+\NewDocumentCommand\usemplibgroupexternalize{O{}m}{%
+  \begingroup
+  \ifvmode\noindent\aftergroup\par\fi
+  \mpfig[#1]usemplibgroup"#2";\endmpfig
+  \lower\directlua{%
+    local n = token.get_macro"luamplib.group.#2"
+    n = n and n:match"\csstring\%d+" or 0
+    local _, _, d = tex.getboxresourcedimensions(tonumber(n))
+    tex.sprint(tostring(d or 0))}sp\lastbox
+  \endgroup
+}
 
 \ifcsname ver@tagpdf.sty\endcsname \else
   \ExplSyntaxOn
@@ -469,8 +483,9 @@
       ,tag          .code:n = { }
       ,adjust-BBox  .code:n = { }
       ,tagging-setup .code:n = { }
-      ,externalize  .code:n = { \mplibexternalizebydefault{#1} }
+      ,externalize  .code:n = { \def\luamplibexternalizedothis{#1} }
       ,externalize  .default:n = { true }
+      ,externalizedepends .code:n = { \def\luamplibexternalizedepends{#1} }
       ,instance     .code:n = { \tl_gset:Nn \currentmpinstancename {#1} }
       ,instancename .meta:n = { instance = {#1} }
       ,unknown      .code:n = { \tl_gset:NV \currentmpinstancename \l_keys_key_str }
@@ -856,8 +871,9 @@
 }
 \keys_define:nn {luamplib/instance}
 {
-  ,externalize  .code:n = { \mplibexternalizebydefault{#1} }
+  ,externalize  .code:n = { \def\luamplibexternalizedothis{#1} }
   ,externalize  .default:n = { true }
+  ,externalizedepends .code:n = { \def\luamplibexternalizedepends{#1} }
   ,instance     .code:n = { \tl_gset:Nn \currentmpinstancename {#1} }
   ,instancename .meta:n = { instance = {#1} }
   ,unknown      .code:n = { \tl_gset:NV \currentmpinstancename \l_keys_key_str }

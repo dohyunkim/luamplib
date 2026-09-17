@@ -179,7 +179,7 @@ endfig;
    VerbatimTeX("\gdef\Dia{" & decimal D & "}");
    endfig;
 \end{mplibcode}%
-diameter:\Dia bp.%
+diameter:\ifdefined\Dia\Dia\fi bp.%
 \begin{mplibcode}[off]
   vardef rotatedlabel@#(expr str, loc, angl) =
     draw thelabel@#(str, loc) rotatedaround(loc, angl)
