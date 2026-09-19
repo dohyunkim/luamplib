@@ -3836,6 +3836,12 @@ end
 
 do
   local extname, prefix, pdfname, luaname, figtab, prevfigtab
+  local function is_shell_esc()
+    if status.shell_escape == 1 then return true end
+    luatexbase.module_error("luamplib",
+    "--shell-escape is needed for 'externalize' feature.\n\z
+    Rerun with --shell-escape option.")
+  end
 
   function externalize.setup ()
     extname = externalize.MY_NAME or format("%s-mplib-figure",tex.jobname)
@@ -3853,7 +3859,6 @@ do
       externalize.activate()
     end
 
-    local texfile = status.filename
     luatexbase.add_to_callback("finish_pdffile", function()
       local mandatory = figtab.mandatory
       if mandatory then
@@ -3868,14 +3873,10 @@ do
       end
       if not figtab.found then
         table.tofile(luaname, figtab, "return")
-        if mandatory then
-          luatexbase.add_to_callback("wrapup_run", function()
-            if file.size(pdfname) == 0 or lfs.modification(texfile) > lfs.modification(pdfname) then
-              return
-            end
-            os.exec{arg[0], "--halt-on-error", tableunpack(arg)}
-          end, "luamplib_externalize")
-        end
+        if not mandatory or not is_shell_esc() then return end
+        luatexbase.add_to_callback("wrapup_run", function()
+          os.exec{arg[0], "--halt-on-error", tableunpack(arg)}
+        end, "luamplib_externalize")
       end
     end,
     "luamplib_externalize")
@@ -3885,10 +3886,10 @@ do
     texsprint"\\AddToHook{shipout/before}\z
     {\\directlua{luamplib.externalize.shipout(tex.getbox(\\the\\ShipoutBox))}}"
   end
-  function externalize.latelua(wd,ht)
+  function externalize.latelua(wd,ht,dp)
     local llx, lly = pdf.getpos()
-    llx, lly = llx/factor, lly/factor
-    local urx, ury = llx+wd, lly+ht
+    llx, lly = llx/factor, lly/factor-dp
+    local urx, ury = llx+wd, lly+ht+dp
     local cropbox = ("/CropBox[%f %f %f %f]"):format(llx, lly, urx, ury):gsub(decimals,rmzeros)
     pdf.setpageattributes(cropbox)
   end
@@ -3903,10 +3904,10 @@ do
           local page = (externalize.page or tex.count.ReadonlyShipoutCounter) + 1
           externalize.page = page
 
-          local wd, ht = curr.width/factor, curr.height/factor
+          local wd, ht, dp = curr.width/factor, curr.height/factor, curr.depth/factor
 
           local latelua = node.new("whatsit","late_lua")
-          latelua.token = format("luamplib.externalize.latelua(%s,%s)", wd, ht)
+          latelua.token = format("luamplib.externalize.latelua(%s,%s,%s)", wd, ht, dp)
           latelua.name = "luamplib.externalize.latelua"
           curr.head = node.insert_before(curr.head, curr.head, latelua)
 
@@ -3914,7 +3915,7 @@ do
           fig.pages = fig.pages or { }
           tableinsert(fig.pages, page)
           fig.metric = fig.metric or { }
-          tableinsert(fig.metric, { width = wd, height = ht })
+          tableinsert(fig.metric, { width = wd, height = ht, depth = dp })
 
           tex.setbox("mplibscratchbox",node.copy(curr))
           tex.shipout"mplibscratchbox"
@@ -3931,12 +3932,9 @@ do
 
     if figtab.found then
       if not luatexbase.in_callback("wrapup_run","luamplib_externalize") then
-        if status.shell_escape == 1 then
+        if is_shell_esc() then
           externalize.wrapup_run()
         else
-          luatexbase.module_error("luamplib",
-          "--shell-escape is needed for 'externalize' feature.\n\z
-          Rerun with --shell-escape option.")
           luatexbase.add_to_callback("wrapup_run",function() end,"luamplib_externalize")
         end
       end
@@ -3944,14 +3942,8 @@ do
     end
   end
   function externalize.wrapup_run ()
-    local texfile = status.filename
     local majorV, minorV = pdf.getmajorversion(), pdf.getminorversion()
-
     luatexbase.add_to_callback("wrapup_run", function()
-      if file.size(pdfname) == 0 or lfs.modification(texfile) > lfs.modification(pdfname) then
-        return
-      end
-
       table.tofile(luaname, figtab, "return")
 
       for i,v in ipairs(figtab) do
@@ -3965,8 +3957,8 @@ do
               \\pdfvariable majorversion %s\\pdfvariable minorversion %s\z
               \\topskip=0pt\\nopagenumbers\z
               \\directlua{img.write{filename=[[%s]],page=%s,pagebox=[[crop]]}}\\bye\"",
-              extname, i, ii, metric.width, metric.height, majorV, minorV, pdfname, vv))
-            assert(status == 0, "luatex failed!")
+              extname,i,ii, metric.width, metric.height+metric.depth, majorV, minorV, pdfname, vv))
+            assert(status == 0, format("failed to generate external image No. %s!",i))
             os.remove(format("%s-%s-%s.log", prefix, i, ii))
           end
         end
@@ -3981,15 +3973,16 @@ do
     tex.setcount("global", "luamplibexternalizecount", count)
 
     local prevfig = prevfigtab[count]
-    local num_of_figs
+    local num_of_figs, metric
     if prevfig then
+      metric = prevfig.metric
       num_of_figs = prevfig.pages and #prevfig.pages
                  or prevfig.changed and 0
                  or prevfig.num_of_figs
     end
     local depend = get_macro"luamplibexternalizedepends"
 
-    figtab[count] = { data = data, num_of_figs = num_of_figs, depend = depend }
+    figtab[count] = { data = data, num_of_figs = num_of_figs, depend = depend, metric = metric }
 
     if get_macro"luamplibexternalizedothis" == "false" then return end
 
@@ -4036,10 +4029,11 @@ do
       for i = 1, num_of_figs do
         local name = format("%s-%s-%s.pdf", prefix, count, i)
         if not lfs.isfile(name) then goto do_this_fig end
+        local dp = (metric and metric[i] and metric[i].depth or 0) * factor
         texsprint(ccexplat,
           "\\prependtomplibbox\\hbox dir TLT\\bgroup",
           "\\tag_socket_use:nn{luamplib/figure/begin}\\l__luamplib_tag_alt_dflt_tl",
-          "\\setbox\\mplibscratchbox\\hbox{\\directlua{img.write{filename=[[", name, "]]}}}",
+          "\\setbox\\mplibscratchbox\\hbox{\\directlua{img.write{filename=[[",name,"]],depth=",dp,"}}}",
           "\\tag_socket_use:nnn{luamplib/figure/end}{\\mplibscratchbox}{\\unhbox\\mplibscratchbox}",
           "\\egroup")
       end
@@ -4053,6 +4047,16 @@ do
     figtab[count].changed = true
     texsprint"\\luamplibexternalizethisfigure"
   end
+  local index = luatexbase.new_luafunction"luamplib_externalize"
+  lua.get_functions_table()[index] = function()
+    local data = token.scan_argument()
+    if externalize.running and externalize.figure(data) then
+      tex.setcount("count@", 1)
+    else
+      tex.setcount("count@", 0)
+    end
+  end
+  token.set_lua("luamplib@externalized", index, "global")
 end
 -- 
 --  End of File `luamplib.lua'.

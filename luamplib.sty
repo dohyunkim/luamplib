@@ -94,9 +94,7 @@
   \fi
 }
 \def\mplibgroupopts[#1]{\def\mplibgroupoptions{#1}\mplibgroupmain}
-\def\mplibgroupmain{%
-  \setbox\mplibscratchbox\hbox\bgroup\ignorespaces
-}
+\def\mplibgroupmain{\setbox\mplibscratchbox\hbox\bgroup\ignorespaces}
 \protected\def\endmplibgroup{\egroup
   \directlua{ luamplib.registergroup(
     \the\mplibscratchbox, '\mplibgroupname', {\mplibgroupoptions}
@@ -450,26 +448,12 @@
   }%
   \directlua{luamplib.externalize.setup()}%
   \def\luamplibexternalizedothis{true}%
-  \let\usemplibgroup\usemplibgroupexternalize
 }
 \def\mplibexternalizename#1{\directlua{luamplib.externalize.MY_NAME=[===[#1]===]}}
 \def\mplibexternalizesuspend{\ifdefined\luamplibexternalizecount
-  \directlua{luamplib.externalize.running = false}%
-  \aftergroup\mplibexternalizeresume\fi}
+  \directlua{luamplib.externalize.running = false}\fi}
 \def\mplibexternalizeresume{\ifdefined\luamplibexternalizecount
-  \directlua{luamplib.externalize.running = true}%
-  \aftergroup\mplibexternalizesuspend\fi}
-\NewDocumentCommand\usemplibgroupexternalize{O{}m}{%
-  \begingroup
-  \ifvmode\noindent\aftergroup\par\fi
-  \mpfig[#1]usemplibgroup"#2";\endmpfig
-  \lower\directlua{%
-    local n = token.get_macro"luamplib.group.#2"
-    n = n and n:match"\csstring\%d+" or 0
-    local _, _, d = tex.getboxresourcedimensions(tonumber(n))
-    tex.sprint(tostring(d or 0))}sp\lastbox
-  \endgroup
-}
+  \directlua{luamplib.externalize.running = true}\fi}
 
 \ifcsname ver@tagpdf.sty\endcsname \else
   \ExplSyntaxOn
@@ -502,6 +486,17 @@
     \keys_set_known:ne {luamplib/tagging} {#2}
     \IfBooleanTF{#1} { \mplibprempfig * }
                      { \mplibmainmpfig }
+  }
+  \RenewDocumentCommand\usemplibgroup{O{} m}
+  {
+    \begingroup
+    \keys_set_known:ne {luamplib/tagging} {#1}
+    \luamplib@externalized{luamplib.group.#2}\ifnum\count@=\z@
+      \prependtomplibbox\hbox dir~TLT~\luamplibexternalizemaybe \bgroup
+        \csname luamplib.group.#2\endcsname
+      \egroup
+    \fi
+    \endgroup
   }
   \cs_set_eq:NN \mplibalttext \use_none:n
   \cs_set_eq:NN \mplibactualtext \use_none:n
@@ -941,14 +936,16 @@
   \tl_set:Nn \l__luamplib_tag_envname_tl {usemplibgroup}
   \keys_set_known:ne {luamplib/tagging} {#1}
   \tag_socket_use:n{luamplib/figure/init}
-  \prependtomplibbox\hbox dir~TLT\bgroup
-    \tag_socket_use:nn{luamplib/figure/begin}{#2}
-    \setbox\mplibscratchbox\hbox\bgroup
-      \bool_if:NF \l__luamplib_tag_usetext_bool { \tag_suspend:n{\usemplibgroup} }
-      \tag_socket_use:nnn{luamplib/mplibgroup/put}{#2}{\csname luamplib.group.#2\endcsname}
+  \luamplib@externalized{luamplib.group.#2}\ifnum\count@=\z@
+    \prependtomplibbox\hbox dir~TLT~\luamplibexternalizemaybe \bgroup
+      \tag_socket_use:nn{luamplib/figure/begin}{#2}
+      \setbox\mplibscratchbox\hbox\bgroup
+        \bool_if:NF \l__luamplib_tag_usetext_bool { \tag_suspend:n{\usemplibgroup} }
+        \tag_socket_use:nnn{luamplib/mplibgroup/put}{#2}{\csname luamplib.group.#2\endcsname}
+      \egroup
+      \tag_socket_use:nnn{luamplib/figure/end}{\mplibscratchbox}{\unhbox\mplibscratchbox}
     \egroup
-    \tag_socket_use:nnn{luamplib/figure/end}{\mplibscratchbox}{\unhbox\mplibscratchbox}
-  \egroup
+  \fi
   \endgroup
 }
 \cs_new_nopar:Npn \mplibalttext #1
