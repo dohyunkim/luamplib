@@ -3842,6 +3842,7 @@ do
     "--shell-escape is needed for 'externalize' feature.\n\z
     Rerun with --shell-escape option.")
   end
+  local majorV, minorV = pdf.getmajorversion(), pdf.getminorversion()
 
   function externalize.setup ()
     extname = externalize.MY_NAME or format("%s-mplib-figure",tex.jobname)
@@ -3851,10 +3852,12 @@ do
     luaname = format("%ss.lua",prefix,extname)
     pdfname = format("%s/%s.pdf",dir,tex.jobname)
 
-    figtab = { }
+    local extver = format("20260920.%s.%s", majorV, minorV)
+    figtab = { version = extver }
     if lfs.isfile(luaname) then
       prevfigtab = require(luaname)
-    else
+    end
+    if not prevfigtab or prevfigtab.version ~= extver then
       prevfigtab = { }
       externalize.activate()
     end
@@ -3888,8 +3891,8 @@ do
   end
   function externalize.latelua(wd,ht,dp)
     local llx, lly = pdf.getpos()
-    llx, lly = llx/factor, lly/factor-dp
-    local urx, ury = llx+wd, lly+ht+dp
+    local urx, ury = (llx+wd)/factor, (lly+ht)/factor
+    llx, lly = llx/factor, (lly-dp)/factor
     local cropbox = ("/CropBox[%f %f %f %f]"):format(llx, lly, urx, ury):gsub(decimals,rmzeros)
     pdf.setpageattributes(cropbox)
   end
@@ -3904,7 +3907,7 @@ do
           local page = (externalize.page or tex.count.ReadonlyShipoutCounter) + 1
           externalize.page = page
 
-          local wd, ht, dp = curr.width/factor, curr.height/factor, curr.depth/factor
+          local wd, ht, dp = curr.width, curr.height, curr.depth
 
           local latelua = node.new("whatsit","late_lua")
           latelua.token = format("luamplib.externalize.latelua(%s,%s,%s)", wd, ht, dp)
@@ -3942,7 +3945,6 @@ do
     end
   end
   function externalize.wrapup_run ()
-    local majorV, minorV = pdf.getmajorversion(), pdf.getminorversion()
     luatexbase.add_to_callback("wrapup_run", function()
       table.tofile(luaname, figtab, "return")
 
@@ -3952,7 +3954,7 @@ do
             local metric = v.metric[ii]
             local status = os.spawn(format(
               "luatex --halt-on-error --jobname=%s-%s-%s \z
-              \"\\pagewidth=%sbp\\pageheight=%sbp\z
+              \"\\pagewidth=%ssp\\pageheight=%ssp\z
               \\pdfvariable horigin 0pt\\pdfvariable vorigin 0pt\z
               \\pdfvariable majorversion %s\\pdfvariable minorversion %s\z
               \\topskip=0pt\\nopagenumbers\z
@@ -3973,16 +3975,24 @@ do
     tex.setcount("global", "luamplibexternalizecount", count)
 
     local prevfig = prevfigtab[count]
-    local num_of_figs, metric
+    local num_of_figs, depth
     if prevfig then
-      metric = prevfig.metric
       num_of_figs = prevfig.pages and #prevfig.pages
                  or prevfig.changed and 0
                  or prevfig.num_of_figs
+      if prevfig.metric then
+        depth = { }
+        for i = 1, num_of_figs do
+          local metric = prevfig.metric[i]
+          tableinsert(depth, metric and metric.depth)
+        end
+      else
+        depth = prevfig.depth
+      end
     end
     local depend = get_macro"luamplibexternalizedepends"
 
-    figtab[count] = { data = data, num_of_figs = num_of_figs, depend = depend, metric = metric }
+    figtab[count] = { data = data, num_of_figs = num_of_figs, depend = depend, depth = depth }
 
     if get_macro"luamplibexternalizedothis" == "false" then return end
 
@@ -4029,11 +4039,11 @@ do
       for i = 1, num_of_figs do
         local name = format("%s-%s-%s.pdf", prefix, count, i)
         if not lfs.isfile(name) then goto do_this_fig end
-        local dp = (metric and metric[i] and metric[i].depth or 0) * factor
         texsprint(ccexplat,
           "\\prependtomplibbox\\hbox dir TLT\\bgroup",
           "\\tag_socket_use:nn{luamplib/figure/begin}\\l__luamplib_tag_alt_dflt_tl",
-          "\\setbox\\mplibscratchbox\\hbox{\\directlua{img.write{filename=[[",name,"]],depth=",dp,"}}}",
+          "\\setbox\\mplibscratchbox\\hbox{\\directlua{img.write{filename=[[", name ,"]],depth=",
+          depth and depth[i] or 0, "}}}",
           "\\tag_socket_use:nnn{luamplib/figure/end}{\\mplibscratchbox}{\\unhbox\\mplibscratchbox}",
           "\\egroup")
       end
