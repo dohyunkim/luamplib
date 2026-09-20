@@ -793,21 +793,19 @@ See source file '\inFileName' for licencing and contact information.
 % \end{itemize}
 %\startmpfig
 %\mplibexternalize
-%\mpfig linejoin:=mitered; interim ahangle:=30; draw image(drawdblarrow (left--right) scaled 9) rotated 15 scaled 10; label.top(TEX "Go to Section \ref{sec:externalize}.", origin) rotated 15 withcolor red; linejoin:=rounded;\endmpfig
+%\mpfig linejoin := mitered; linecap := butt; interim ahangle := 30; draw image(drawarrow (down--up) scaled 5) scaled 10; draw TEX "Go to Section \ref{sec:externalize}." shifted 5right withcolor red; \endmpfig
 %\mplibexternalizesuspend
-%\stopmpfig{6}
+%\stopmpfig{5}
 %\begin{verbatim}
 %    \mplibexternalize
 %    \mpfig
 %      linejoin := mitered ;
+%      linecap := butt ;
 %      interim ahangle := 30 ;
-%      draw image(
-%          drawdblarrow (left--right) scaled 9
-%        ) rotated 15 scaled 10 ;
-%     label.top(
-%         TEX "Go to Section \ref{sec:externalize}.",
-%         origin
-%       ) rotated 15 withcolor red ;
+%      draw image(drawarrow (down--up) scaled 5)
+%        scaled 10 ;
+%      draw TEX "Go to Section \ref{sec:externalize}."
+%        shifted 5 right withcolor red ;
 %    \endmpfig
 %\end{verbatim}
 % Therefore we recommend that users use the `externalize' functionality only privately, such as for compiling while editing the document, not for final PDF to be distributed publicly.
@@ -6622,7 +6620,7 @@ do
     luaname = format("%ss.lua",prefix,extname)
     pdfname = format("%s/%s.pdf",dir,tex.jobname)
 
-    local extver = format("20260920.%s.%s", majorV, minorV)
+    local extver = format("20260920.%s%s", majorV, minorV)
     figtab = { version = extver }
     if lfs.isfile(luaname) then
       prevfigtab = require(luaname)
@@ -6754,7 +6752,7 @@ do
         depth = { }
         for i = 1, num_of_figs do
           local metric = prevfig.metric[i]
-          tableinsert(depth, metric and metric.depth)
+          depth[i] = metric and metric.depth or 0
         end
       else
         depth = prevfig.depth
@@ -6831,9 +6829,9 @@ do
   lua.get_functions_table()[index] = function()
     local data = token.scan_argument()
     if externalize.running and externalize.figure(data) then
-      tex.setcount("count@", 1)
+      tex.setcount("l_tmpa_int", 1)
     else
-      tex.setcount("count@", 0)
+      tex.setcount("l_tmpa_int", 0)
     end
   end
   token.set_lua("luamplib@externalized", index, "global")
@@ -7451,11 +7449,13 @@ end
   {
     \begingroup
     \keys_set_known:ne {luamplib/tagging} {#1}
-    \luamplib@externalized{luamplib.group.#2}\ifnum\count@=\z@
+    \luamplib@externalized{luamplib.group.#2}
+    \int_compare:nNnT {\l_tmpa_int} = {\c_zero_int}
+    {
       \prependtomplibbox\hbox dir~TLT~\luamplibexternalizemaybe \bgroup
         \csname luamplib.group.#2\endcsname
       \egroup
-    \fi
+    }
     \endgroup
   }
   \cs_set_eq:NN \mplibalttext \use_none:n
@@ -7947,7 +7947,9 @@ end
   \tl_set:Nn \l__luamplib_tag_envname_tl {usemplibgroup}
   \keys_set_known:ne {luamplib/tagging} {#1}
   \tag_socket_use:n{luamplib/figure/init}
-  \luamplib@externalized{luamplib.group.#2}\ifnum\count@=\z@
+  \luamplib@externalized{luamplib.group.#2}
+  \int_compare:nNnT {\l_tmpa_int} = {\c_zero_int}
+  {
     \prependtomplibbox\hbox dir~TLT~\luamplibexternalizemaybe \bgroup
       \tag_socket_use:nn{luamplib/figure/begin}{#2}
       \setbox\mplibscratchbox\hbox\bgroup
@@ -7956,7 +7958,7 @@ end
       \egroup
       \tag_socket_use:nnn{luamplib/figure/end}{\mplibscratchbox}{\unhbox\mplibscratchbox}
     \egroup
-  \fi
+  }
   \endgroup
 }
 %    \end{macrocode}

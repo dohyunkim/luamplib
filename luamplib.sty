@@ -491,11 +491,13 @@
   {
     \begingroup
     \keys_set_known:ne {luamplib/tagging} {#1}
-    \luamplib@externalized{luamplib.group.#2}\ifnum\count@=\z@
+    \luamplib@externalized{luamplib.group.#2}
+    \int_compare:nNnT {\l_tmpa_int} = {\c_zero_int}
+    {
       \prependtomplibbox\hbox dir~TLT~\luamplibexternalizemaybe \bgroup
         \csname luamplib.group.#2\endcsname
       \egroup
-    \fi
+    }
     \endgroup
   }
   \cs_set_eq:NN \mplibalttext \use_none:n
@@ -936,7 +938,9 @@
   \tl_set:Nn \l__luamplib_tag_envname_tl {usemplibgroup}
   \keys_set_known:ne {luamplib/tagging} {#1}
   \tag_socket_use:n{luamplib/figure/init}
-  \luamplib@externalized{luamplib.group.#2}\ifnum\count@=\z@
+  \luamplib@externalized{luamplib.group.#2}
+  \int_compare:nNnT {\l_tmpa_int} = {\c_zero_int}
+  {
     \prependtomplibbox\hbox dir~TLT~\luamplibexternalizemaybe \bgroup
       \tag_socket_use:nn{luamplib/figure/begin}{#2}
       \setbox\mplibscratchbox\hbox\bgroup
@@ -945,7 +949,7 @@
       \egroup
       \tag_socket_use:nnn{luamplib/figure/end}{\mplibscratchbox}{\unhbox\mplibscratchbox}
     \egroup
-  \fi
+  }
   \endgroup
 }
 \cs_new_nopar:Npn \mplibalttext #1

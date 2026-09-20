@@ -3852,7 +3852,7 @@ do
     luaname = format("%ss.lua",prefix,extname)
     pdfname = format("%s/%s.pdf",dir,tex.jobname)
 
-    local extver = format("20260920.%s.%s", majorV, minorV)
+    local extver = format("20260920.%s%s", majorV, minorV)
     figtab = { version = extver }
     if lfs.isfile(luaname) then
       prevfigtab = require(luaname)
@@ -3984,7 +3984,7 @@ do
         depth = { }
         for i = 1, num_of_figs do
           local metric = prevfig.metric[i]
-          tableinsert(depth, metric and metric.depth)
+          depth[i] = metric and metric.depth or 0
         end
       else
         depth = prevfig.depth
@@ -4061,9 +4061,9 @@ do
   lua.get_functions_table()[index] = function()
     local data = token.scan_argument()
     if externalize.running and externalize.figure(data) then
-      tex.setcount("count@", 1)
+      tex.setcount("l_tmpa_int", 1)
     else
-      tex.setcount("count@", 0)
+      tex.setcount("l_tmpa_int", 0)
     end
   end
   token.set_lua("luamplib@externalized", index, "global")
