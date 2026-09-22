@@ -85,7 +85,7 @@ See source file '\inFileName' for licencing and contact information.
 %<*driver>
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesFile{luamplib.drv}%
-  [2026/09/07 v2.43.0 Interface for using the mplib library]%
+  [2026/09/22 v2.44.0 Interface for using the mplib library]%
 \documentclass[11pt,a4paper]{ltxdoc}
 \usepackage{geometry,graphicx,xspace}
 \usepackage[x11names]{xcolor}
@@ -174,7 +174,7 @@ See source file '\inFileName' for licencing and contact information.
 % \author{Hans Hagen, Taco Hoekwater, Elie Roux, Philipp Gesang and Kim Dohyun\\
 % Current Maintainer: Kim Dohyun\\
 % Support: \url{https://github.com/lualatex/luamplib}}
-% \date{2026/09/07 v2.43.0}
+% \date{2026/09/22 v2.44.0}
 %
 % \maketitle
 %
@@ -760,7 +760,7 @@ See source file '\inFileName' for licencing and contact information.
 % At next run of \LaTeX, the world of externalization will start anew from the very beginning.
 %
 % \item[\cs{mplibexternalizesuspend}]
-%   \metapost code chunks after this command will not generate external images.
+%   The operation of `externalize' functionality will be halted.
 %   This command does not respect \TeX's group scope.
 %
 % \item[\cs{mplibexternalizeresume}]
@@ -2322,8 +2322,8 @@ See source file '\inFileName' for licencing and contact information.
 
 luatexbase.provides_module {
   name          = "luamplib",
-  version       = "2.43.0",
-  date          = "2026/09/07",
+  version       = "2.44.0",
+  date          = "2026/09/22",
   description   = "Lua package to typeset Metapost with LuaTeX's MPLib.",
 }
 
@@ -6629,7 +6629,7 @@ do
     luaname = format("%ss.lua",prefix,extname)
     pdfname = format("%s/%s.pdf",dir,tex.jobname)
 
-    local extver = format("20260920.%s%s", majorV, minorV)
+    local extver = format("20260922.%s%s", majorV, minorV)
     figtab = { version = extver }
     if lfs.isfile(luaname) then
       prevfigtab = require(luaname)
@@ -6879,7 +6879,7 @@ end
 %    \begin{macrocode}
   \NeedsTeXFormat{LaTeX2e}
   \ProvidesPackage{luamplib}
-    [2026/09/07 v2.43.0 mplib package for LuaTeX]
+    [2026/09/22 v2.44.0 mplib package for LuaTeX]
 \fi
 \ifdefined\newluafunction\else
   \input ltluatex

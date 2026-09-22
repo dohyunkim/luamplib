@@ -11,8 +11,8 @@
 
 luatexbase.provides_module {
   name          = "luamplib",
-  version       = "2.43.0",
-  date          = "2026/09/07",
+  version       = "2.44.0",
+  date          = "2026/09/22",
   description   = "Lua package to typeset Metapost with LuaTeX's MPLib.",
 }
 
@@ -3852,7 +3852,7 @@ do
     luaname = format("%ss.lua",prefix,extname)
     pdfname = format("%s/%s.pdf",dir,tex.jobname)
 
-    local extver = format("20260920.%s%s", majorV, minorV)
+    local extver = format("20260922.%s%s", majorV, minorV)
     figtab = { version = extver }
     if lfs.isfile(luaname) then
       prevfigtab = require(luaname)
