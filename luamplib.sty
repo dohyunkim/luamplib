@@ -448,6 +448,7 @@
   }%
   \directlua{luamplib.externalize.setup()}%
   \def\luamplibexternalizedothis{true}%
+  \aftergroup\mplibexternalizesuspend
 }
 \def\mplibexternalizename#1{\directlua{luamplib.externalize.MY_NAME=[===[#1]===]}}
 \def\mplibexternalizesuspend{\ifdefined\luamplibexternalizecount
@@ -467,9 +468,10 @@
       ,tag          .code:n = { }
       ,adjust-BBox  .code:n = { }
       ,tagging-setup .code:n = { }
-      ,externalize  .code:n = { \def\luamplibexternalizedothis{#1} }
+      ,externalize  .code:n = { \cs_set_nopar:Npn \luamplibexternalizedothis {#1} }
       ,externalize  .default:n = { true }
-      ,externalizedepends .code:n = { \def\luamplibexternalizedepends{#1} }
+      ,externalizedependson .code:n = { \cs_set_nopar:Npn \luamplibexternalizedependson {#1} }
+      ,externalizemargin .code:n = { \cs_set_nopar:Npn \luamplibexternalizemargin {#1} }
       ,instance     .code:n = { \tl_gset:Nn \currentmpinstancename {#1} }
       ,instancename .meta:n = { instance = {#1} }
       ,unknown      .code:n = { \tl_gset:NV \currentmpinstancename \l_keys_key_str }
@@ -482,14 +484,14 @@
     }
   \RenewDocumentCommand\mpfig{s O{}}
   {
-    \begingroup
+    \group_begin:
     \keys_set_known:ne {luamplib/tagging} {#2}
     \IfBooleanTF{#1} { \mplibprempfig * }
                      { \mplibmainmpfig }
   }
   \RenewDocumentCommand\usemplibgroup{O{} m}
   {
-    \begingroup
+    \group_begin:
     \keys_set_known:ne {luamplib/tagging} {#1}
     \luamplib@externalized{luamplib.group.#2}
     \int_compare:nNnT {\l_tmpa_int} = {\c_zero_int}
@@ -498,7 +500,7 @@
         \csname luamplib.group.#2\endcsname
       \egroup
     }
-    \endgroup
+    \group_end:
   }
   \cs_set_eq:NN \mplibalttext \use_none:n
   \cs_set_eq:NN \mplibactualtext \use_none:n
@@ -765,7 +767,10 @@
 }
 \socket_new_plug:nnn{tagsupport/luamplib/figure/end}{alt}
 {
-    \__luamplib_tag_bbox_attribute:n {#1}
+    \cs_if_eq:NNT \luamplibexternalizemaybe \relax
+    {
+      \__luamplib_tag_bbox_attribute:n {#1}
+    }
     #2
     \tl_use:N \l__luamplib_tag_bbox_draw_tl
     \tag_mc_end:
@@ -868,9 +873,10 @@
 }
 \keys_define:nn {luamplib/instance}
 {
-  ,externalize  .code:n = { \def\luamplibexternalizedothis{#1} }
+  ,externalize  .code:n = { \cs_set_nopar:Npn \luamplibexternalizedothis {#1} }
   ,externalize  .default:n = { true }
-  ,externalizedepends .code:n = { \def\luamplibexternalizedepends{#1} }
+  ,externalizedependson .code:n = { \cs_set_nopar:Npn \luamplibexternalizedependson {#1} }
+  ,externalizemargin .code:n = { \cs_set_nopar:Npn \luamplibexternalizemargin {#1} }
   ,instance     .code:n = { \tl_gset:Nn \currentmpinstancename {#1} }
   ,instancename .meta:n = { instance = {#1} }
   ,unknown      .code:n = { \tl_gset:NV \currentmpinstancename \l_keys_key_str }
@@ -924,9 +930,10 @@
 }
 \RenewDocumentCommand\mpfig{s O{}}
 {
-  \begingroup
+  \group_begin:
   \tl_set:Nn \l__luamplib_tag_envname_tl {mpfig}
-  \keys_set_known:ne {luamplib/tagging} {#2}
+  \keys_set_known:neN {luamplib/tagging} {#2} \l_tmpa_tl
+  \keys_set:nV {luamplib/instance} \l_tmpa_tl
   \tl_set_eq:NN \l__luamplib_tag_alt_dflt_tl \mpfiginstancename
   \tag_socket_use:n{luamplib/figure/init}
   \IfBooleanTF{#1} { \mplibprempfig * }
@@ -934,9 +941,10 @@
 }
 \RenewDocumentCommand\usemplibgroup{O{} m}
 {
-  \begingroup
+  \group_begin:
   \tl_set:Nn \l__luamplib_tag_envname_tl {usemplibgroup}
-  \keys_set_known:ne {luamplib/tagging} {#1}
+  \keys_set_known:neN {luamplib/tagging} {#1} \l_tmpa_tl
+  \keys_set:nV {luamplib/instance} \l_tmpa_tl
   \tag_socket_use:n{luamplib/figure/init}
   \luamplib@externalized{luamplib.group.#2}
   \int_compare:nNnT {\l_tmpa_int} = {\c_zero_int}
@@ -950,7 +958,7 @@
       \tag_socket_use:nnn{luamplib/figure/end}{\mplibscratchbox}{\unhbox\mplibscratchbox}
     \egroup
   }
-  \endgroup
+  \group_end:
 }
 \cs_new_nopar:Npn \mplibalttext #1
 {

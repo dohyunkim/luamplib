@@ -3836,13 +3836,13 @@ end
 
 do
   local extname, prefix, pdfname, luaname, figtab, prevfigtab
+  local majorV, minorV = pdf.getmajorversion(), pdf.getminorversion()
   local function is_shell_esc()
     if status.shell_escape == 1 then return true end
     luatexbase.module_error("luamplib",
     "--shell-escape is needed for 'externalize' feature.\n\z
     Rerun with --shell-escape option.")
   end
-  local majorV, minorV = pdf.getmajorversion(), pdf.getminorversion()
 
   function externalize.setup ()
     extname = externalize.MY_NAME or format("%s-mplib-figure",tex.jobname)
@@ -3866,10 +3866,10 @@ do
       local mandatory = figtab.mandatory
       if mandatory then
         local depends = externalize.depends
-        for num in pairs(depends) do
-          if mandatory[num] then
-            for _,vv in ipairs(depends[num]) do
-              mandatory[vv] = true
+        for i = 1, #figtab do
+          if mandatory[i] then
+            for _,v in ipairs(depends[i]) do
+              mandatory[v] = true
             end
           end
         end
@@ -3889,11 +3889,11 @@ do
     texsprint"\\AddToHook{shipout/before}\z
     {\\directlua{luamplib.externalize.shipout(tex.getbox(\\the\\ShipoutBox))}}"
   end
-  function externalize.latelua(wd,ht,dp)
+  function externalize.latelua(wd,ht,dp,mgn)
     local llx, lly = pdf.getpos()
-    local urx, ury = (llx+wd)/factor, (lly+ht)/factor
-    llx, lly = llx/factor, (lly-dp)/factor
-    local cropbox = ("/CropBox[%f %f %f %f]"):format(llx, lly, urx, ury):gsub(decimals,rmzeros)
+    local urx, ury = (llx+wd+mgn)/factor, (lly+ht+mgn)/factor
+    llx, lly = (llx-mgn)/factor, (lly-dp-mgn)/factor
+    local cropbox = ("/CropBox[%f %f %f %f]"):format(llx, lly, urx, ury)
     pdf.setpageattributes(cropbox)
   end
   function externalize.shipout (head)
@@ -3907,18 +3907,18 @@ do
           local page = (externalize.page or tex.count.ReadonlyShipoutCounter) + 1
           externalize.page = page
 
+          local fig = figtab[count]
           local wd, ht, dp = curr.width, curr.height, curr.depth
 
           local latelua = node.new("whatsit","late_lua")
-          latelua.token = format("luamplib.externalize.latelua(%s,%s,%s)", wd, ht, dp)
+          latelua.token = format("luamplib.externalize.latelua(%s,%s,%s,%s)",wd,ht,dp,fig.margin or 0)
           latelua.name = "luamplib.externalize.latelua"
           curr.head = node.insert_before(curr.head, curr.head, latelua)
 
-          local fig = figtab[count]
           fig.pages = fig.pages or { }
           tableinsert(fig.pages, page)
           fig.metric = fig.metric or { }
-          tableinsert(fig.metric, { width = wd, height = ht, depth = dp })
+          tableinsert(fig.metric, { wd, ht, dp })
 
           tex.setbox("mplibscratchbox",node.copy(curr))
           tex.shipout"mplibscratchbox"
@@ -3950,8 +3950,9 @@ do
 
       for i,v in ipairs(figtab) do
         if v.pages then
+          local mgn = v.margin and v.margin*2 or 0
           for ii,vv in ipairs(v.pages) do
-            local metric = v.metric[ii]
+            local wd, ht, dp = tableunpack(v.metric[ii])
             local status = os.spawn(format(
               "luatex --halt-on-error --jobname=%s-%s-%s \z
               \"\\pagewidth=%ssp\\pageheight=%ssp\z
@@ -3959,7 +3960,7 @@ do
               \\pdfvariable majorversion %s\\pdfvariable minorversion %s\z
               \\topskip=0pt\\nopagenumbers\z
               \\directlua{img.write{filename=[[%s]],page=%s,pagebox=[[crop]]}}\\bye\"",
-              extname,i,ii, metric.width, metric.height+metric.depth, majorV, minorV, pdfname, vv))
+              extname, i, ii, wd+mgn, ht+dp+mgn, majorV, minorV, pdfname, vv))
             assert(status == 0, format("failed to generate external image No. %s!",i))
             os.remove(format("%s-%s-%s.log", prefix, i, ii))
           end
@@ -3975,28 +3976,31 @@ do
     tex.setcount("global", "luamplibexternalizecount", count)
 
     local prevfig = prevfigtab[count]
-    local num_of_figs, depth
+    local num_of_figs, whd
     if prevfig then
       num_of_figs = prevfig.pages and #prevfig.pages
                  or prevfig.changed and 0
                  or prevfig.num_of_figs
-      if prevfig.metric then
-        depth = { }
-        for i = 1, num_of_figs do
-          local metric = prevfig.metric[i]
-          depth[i] = metric and metric.depth or 0
-        end
-      else
-        depth = prevfig.depth
-      end
+      whd = prevfig.metric or prevfig.whd
     end
-    local depend = get_macro"luamplibexternalizedepends"
+    local depend = get_macro"luamplibexternalizedependson"
 
-    figtab[count] = { data = data, num_of_figs = num_of_figs, depend = depend, depth = depth }
+    local margin = get_macro"luamplibexternalizemargin"
+          margin = margin and tex.sp(margin)
+
+    figtab[count] = {
+      data = data,
+      depend = depend,
+      margin = margin,
+      num_of_figs = num_of_figs,
+      whd = whd,
+    }
 
     if get_macro"luamplibexternalizedothis" == "false" then return end
 
-    local match = prevfig and prevfig.data == data and prevfig.depend == depend
+    local match = prevfig and prevfig.data == data
+              and prevfig.depend == depend
+              and prevfig.margin == margin
 
     if prevfigtab.mandatory and prevfigtab.mandatory[count] then
       goto do_this_fig
@@ -4004,7 +4008,11 @@ do
     if depend then
       local deps = depend:explode","
       for i,v in ipairs(deps) do
-        deps[i] = tonumber(v)
+        local n = tonumber(v)
+        if n < 0 then
+          n = count + n
+        end
+        deps[i] = n
       end
 
       local depends = externalize.depends or { }
@@ -4039,12 +4047,15 @@ do
       for i = 1, num_of_figs do
         local name = format("%s-%s-%s.pdf", prefix, count, i)
         if not lfs.isfile(name) then goto do_this_fig end
+        local wd, ht, dp = tableunpack(whd[i])
         texsprint(ccexplat,
           "\\prependtomplibbox\\hbox dir TLT\\bgroup",
           "\\tag_socket_use:nn{luamplib/figure/begin}\\l__luamplib_tag_alt_dflt_tl",
-          "\\setbox\\mplibscratchbox\\hbox{\\directlua{img.write{filename=[[", name ,"]],depth=",
-          depth and depth[i] or 0, "}}}",
-          "\\tag_socket_use:nnn{luamplib/figure/end}{\\mplibscratchbox}{\\unhbox\\mplibscratchbox}",
+          "\\setbox\\mplibscratchbox\\vbox to", ht+dp, "sp{\\vss\\hbox to", wd, "sp{\\hss",
+          "\\directlua{img.write{filename=[[", name ,"]]}}\\hss}\\vss}",
+          "\\dp\\mplibscratchbox=", dp, "sp",
+          "\\ht\\mplibscratchbox=\\dimexpr\\ht\\mplibscratchbox-\\dp\\mplibscratchbox\\relax",
+          "\\tag_socket_use:nnn{luamplib/figure/end}{\\mplibscratchbox}{\\box\\mplibscratchbox}",
           "\\egroup")
       end
       return true
