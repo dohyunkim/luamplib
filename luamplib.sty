@@ -400,6 +400,13 @@
 \fi
 \let\luamplibexternalizemaybe\relax
 \def\mplibexternalize{%
+  \ifnum\outputmode=0 %
+    \ifcsname PackageError\endcsname
+      \PackageError{luamplib}{'externalize' feature supports PDF mode only}{}%
+    \else
+      \errmessage{Package luamplib error: 'externalize' feature supports PDF mode only}%
+    \fi
+  \fi
   \ifcsname ver@luamplib.sty\endcsname
     \gdef\AtBeginShipout{\AddToHook{shipout/before}}%
   \else
@@ -521,6 +528,7 @@
   Alternate~text~for~#1~is~missing.~
   Using~the~default~value~'#2'~instead.
 }
+\tagpdfsetup{debug/parent-child-check=atend}
 \socket_new:nn{tagsupport/luamplib/textext/set}{2}
 \socket_new:nn{tagsupport/luamplib/textext/put}{2}
 \socket_new_plug:nnn{tagsupport/luamplib/textext/set}{default}
@@ -528,7 +536,7 @@
   \bool_if:NTF \l__luamplib_tag_usetext_bool
   {
     \tag_mc_end_push:
-    \tag_struct_begin:n{tag=NonStruct, stash, parent-tag=\l__luamplib_tag_struct_tl}
+    \tag_struct_begin:n{tag=NonStruct, stash}
     \cs_gset_nopar:cpe {luamplib.taggedbox.#1} {\tag_get:n{struct_num}}
     \tag_mc_begin:n{tag=\l__luamplib_tag_struct_tl}
     #2

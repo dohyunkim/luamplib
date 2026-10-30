@@ -741,7 +741,7 @@ See source file '\inFileName' for licencing and contact information.
 %
 % \subsubsection{Externalize \metapost figures}
 %   \label{sec:externalize}
-% Though \pkg{mplib} library is already quite fast, generating external image files from \metapost figures and including them as XObjects into the PDF could significantly improve compilation speed.
+% Though \pkg{mplib} library is already quite fast, generating external image files from \metapost figures and including them as XObjects (external objects) into the PDF could significantly improve compilation speed.
 % Inspired by \pkg{PGF}'s `external' library, \pkg{luamplib} also provides similar functionality: the \emph{externalize} feature, which requires |--shell-escape| command-line option.
 %
 % You can invoke this feature by the command \bsx\cs{mplibexternalize}\esx.
@@ -7454,6 +7454,13 @@ end
 %    \begin{macrocode}
 \let\luamplibexternalizemaybe\relax
 \def\mplibexternalize{%
+  \ifnum\outputmode=0 %
+    \ifcsname PackageError\endcsname
+      \PackageError{luamplib}{'externalize' feature supports PDF mode only}{}%
+    \else
+      \errmessage{Package luamplib error: 'externalize' feature supports PDF mode only}%
+    \fi
+  \fi
   \ifcsname ver@luamplib.sty\endcsname
     \gdef\AtBeginShipout{\AddToHook{shipout/before}}%
   \else
@@ -7592,6 +7599,7 @@ end
 %    \end{macrocode}
 % Sockets for tex-text boxes.
 %    \begin{macrocode}
+\tagpdfsetup{debug/parent-child-check=atend}
 \socket_new:nn{tagsupport/luamplib/textext/set}{2}
 \socket_new:nn{tagsupport/luamplib/textext/put}{2}
 \socket_new_plug:nnn{tagsupport/luamplib/textext/set}{default}
@@ -7604,7 +7612,7 @@ end
   \bool_if:NTF \l__luamplib_tag_usetext_bool
   {
     \tag_mc_end_push:
-    \tag_struct_begin:n{tag=NonStruct, stash, parent-tag=\l__luamplib_tag_struct_tl}
+    \tag_struct_begin:n{tag=NonStruct, stash}
     \cs_gset_nopar:cpe {luamplib.taggedbox.#1} {\tag_get:n{struct_num}}
 %    \end{macrocode}
 % TODO: We force an MC. Otherwise |a| and |b| in |btex a $x$ b etex| are not tagged.

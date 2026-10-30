@@ -1,5 +1,7 @@
                        History of the luamplib package
 
+   * tagged PDF: globally set `debug/parent-child-check=atend`
+
 2026/10/21 2.44.3
    * 'externalize' functionality now supports Plain TeX as well.
 
